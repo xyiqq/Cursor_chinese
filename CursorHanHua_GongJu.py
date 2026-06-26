@@ -174,7 +174,8 @@ def ZhengHe_YongLiang_ShuJu(LingPai):
         "shengYu": 2000,     # 剩余次数
         "gaoJiYong": 0,      # 高级请求使用次数
         "gaoJiXian": 500,    # 高级请求限额（PRO 默认 500）
-        "zongBaiFen": 0,     # 总使用百分比
+        "zongBaiFen": 0,     # 总使用百分比（与官网一致，权威字段）
+        "shengYuBaiFen": 100,  # 剩余百分比（100 - 总占比）
         "apiBaiFen": 0,      # API 使用百分比
         "autoBaiFen": 0,     # Auto 模型使用百分比
         "jiFeiKaiShi": "",   # 计费周期开始
@@ -192,7 +193,8 @@ def ZhengHe_YongLiang_ShuJu(LingPai):
         ShuJu["zongYong"] = JiHua.get('used', 0)  # 已使用次数
         ShuJu["zongXian"] = JiHua.get('limit', 2000)  # 总限额
         ShuJu["shengYu"] = JiHua.get('remaining', 0)  # 剩余次数
-        ShuJu["zongBaiFen"] = round(JiHua.get('totalPercentUsed', 0), 1)  # 总百分比
+        ShuJu["zongBaiFen"] = round(JiHua.get('totalPercentUsed', 0), 1)  # 总百分比（官网显示值）
+        ShuJu["shengYuBaiFen"] = round(max(0, 100 - ShuJu["zongBaiFen"]), 1)  # 剩余百分比
         ShuJu["apiBaiFen"] = round(JiHua.get('apiPercentUsed', 0), 1)  # API 百分比
         ShuJu["autoBaiFen"] = round(JiHua.get('autoPercentUsed', 0), 1)  # Auto 百分比
         ShuJu["jiHua"] = ZongJie.get('membershipType', 'pro')  # 计划类型
@@ -1396,6 +1398,7 @@ def ShengCheng_JS_DaiMa(YongLiang_ShuJu, YuanShi_LingPai=""):
         YONG_LIANG.zongXian = plan.limit || YONG_LIANG.zongXian || 2000;
         YONG_LIANG.shengYu = plan.remaining != null ? plan.remaining : Math.max(0, YONG_LIANG.zongXian - YONG_LIANG.zongYong);
         YONG_LIANG.zongBaiFen = Math.round((plan.totalPercentUsed || 0) * 10) / 10;
+        YONG_LIANG.shengYuBaiFen = Math.round(Math.max(0, 100 - YONG_LIANG.zongBaiFen) * 10) / 10;
         YONG_LIANG.apiBaiFen = Math.round((plan.apiPercentUsed || 0) * 10) / 10;
         YONG_LIANG.autoBaiFen = Math.round((plan.autoPercentUsed || 0) * 10) / 10;
         YONG_LIANG.jiHua = data.membershipType || YONG_LIANG.jiHua;
@@ -1517,8 +1520,17 @@ def ShengCheng_JS_DaiMa(YongLiang_ShuJu, YuanShi_LingPai=""):
         return outer;
     }
 
+    function _GeShi_BaiFen(v) {
+        var n = Number(v);
+        if (!isFinite(n)) return '0%';
+        var r = Math.round(n * 10) / 10;
+        return (r % 1 === 0 ? r.toFixed(0) : r.toFixed(1)) + '%';
+    }
+
     function _YongLiang_YanSe() {
-        var zP = YONG_LIANG.zongBaiFen || (YONG_LIANG.zongXian > 0 ? (YONG_LIANG.zongYong / YONG_LIANG.zongXian * 100) : 0);
+        var zP = typeof YONG_LIANG.zongBaiFen === 'number'
+            ? YONG_LIANG.zongBaiFen
+            : (YONG_LIANG.zongXian > 0 ? (YONG_LIANG.zongYong / YONG_LIANG.zongXian * 100) : 0);
         var gP = YONG_LIANG.gaoJiXian > 0 ? (YONG_LIANG.gaoJiYong / YONG_LIANG.gaoJiXian * 100) : 0;
         return {
             zP: zP, gP: gP,
@@ -1543,14 +1555,13 @@ def ShengCheng_JS_DaiMa(YongLiang_ShuJu, YuanShi_LingPai=""):
         W.id = 'cursor-yongliang-chat';
         W.setAttribute('aria-label', '\\u7528\\u91cf\\u76d1\\u63a7');
 
-        _TianJia_XinXiKuai(W, '\\u603b\\u7528\\u91cf', YONG_LIANG.zongYong + '/' + YONG_LIANG.zongXian, ys.zC);
-        _TianJia_XinXiKuai(W, '\\u5269\\u4f59', '' + YONG_LIANG.shengYu, '#4ade80');
-        _TianJia_XinXiKuai(W, '\\u5360\\u6bd4', YONG_LIANG.zongBaiFen + '%', ys.zC);
-        if (YONG_LIANG.apiBaiFen !== undefined && YONG_LIANG.apiBaiFen !== null) {
-            _TianJia_XinXiKuai(W, 'API', YONG_LIANG.apiBaiFen + '%', '#38bdf8');
-        }
+        _TianJia_XinXiKuai(W, '\\u5408\\u8ba1', _GeShi_BaiFen(YONG_LIANG.zongBaiFen), ys.zC);
+        _TianJia_XinXiKuai(W, '\\u5269\\u4f59', _GeShi_BaiFen(YONG_LIANG.shengYuBaiFen), '#4ade80');
         if (YONG_LIANG.autoBaiFen !== undefined && YONG_LIANG.autoBaiFen !== null) {
-            _TianJia_XinXiKuai(W, 'Auto', YONG_LIANG.autoBaiFen + '%', '#a78bfa');
+            _TianJia_XinXiKuai(W, 'Auto', _GeShi_BaiFen(YONG_LIANG.autoBaiFen), '#a78bfa');
+        }
+        if (YONG_LIANG.apiBaiFen !== undefined && YONG_LIANG.apiBaiFen !== null) {
+            _TianJia_XinXiKuai(W, 'API', _GeShi_BaiFen(YONG_LIANG.apiBaiFen), '#38bdf8');
         }
         if (YONG_LIANG.jiFeiJieShu) {
             _TianJia_XinXiKuai(W, '\\u91cd\\u7f6e', YONG_LIANG.jiFeiJieShu, '#7c3aed');
@@ -1572,15 +1583,15 @@ def ShengCheng_JS_DaiMa(YongLiang_ShuJu, YuanShi_LingPai=""):
 
         var r1 = _ce('div', 'margin-bottom:8px;');
         var t1 = _ce('div', 'font-size:11px;color:rgba(228,228,228,0.55);margin-bottom:4px;');
-        t1.appendChild(document.createTextNode('\\u603b\\u7528\\u91cf '));
-        t1.appendChild(_ce('span', 'color:' + ys.zC + ';font-weight:600;', '' + YONG_LIANG.zongYong));
-        t1.appendChild(document.createTextNode(' / ' + YONG_LIANG.zongXian + '  \\u5269\\u4f59 ' + YONG_LIANG.shengYu + '  \\u5360\\u6bd4 ' + YONG_LIANG.zongBaiFen + '%'));
+        t1.appendChild(document.createTextNode('\\u5408\\u8ba1 '));
+        t1.appendChild(_ce('span', 'color:' + ys.zC + ';font-weight:600;', _GeShi_BaiFen(YONG_LIANG.zongBaiFen)));
+        t1.appendChild(document.createTextNode('  \\u5269\\u4f59 ' + _GeShi_BaiFen(YONG_LIANG.shengYuBaiFen)));
         r1.appendChild(t1);
         r1.appendChild(_bar(ys.zP, ys.zC, 4));
         W.appendChild(r1);
 
         var r2 = _ce('div', 'font-size:11px;color:rgba(228,228,228,0.55);margin-bottom:6px;');
-        r2.appendChild(document.createTextNode('API ' + YONG_LIANG.apiBaiFen + '%  |  Auto ' + YONG_LIANG.autoBaiFen + '%  |  \\u8ba1\\u5212 ' + (YONG_LIANG.jiHua || '').toUpperCase()));
+        r2.appendChild(document.createTextNode('Auto ' + _GeShi_BaiFen(YONG_LIANG.autoBaiFen) + '  |  API ' + _GeShi_BaiFen(YONG_LIANG.apiBaiFen) + '  |  \\u8ba1\\u5212 ' + (YONG_LIANG.jiHua || '').toUpperCase()));
         W.appendChild(r2);
 
         if (YONG_LIANG.gaoJiXian > 0) {
@@ -1928,9 +1939,8 @@ def ZhuChengXu():
         print("\n[步骤 2/4] 获取用量数据...")
         YongLiang_ShuJu = ZhengHe_YongLiang_ShuJu(LingPai)
         if YongLiang_ShuJu and YongLiang_ShuJu.get("youXiao"):
-            print(f"[用量] 总用量: {YongLiang_ShuJu['zongYong']} / {YongLiang_ShuJu['zongXian']} 次")
-            print(f"[用量] 高级请求: {YongLiang_ShuJu['gaoJiYong']} / {YongLiang_ShuJu['gaoJiXian']} 次")
-            print(f"[用量] 剩余: {YongLiang_ShuJu['shengYu']} 次")
+            print(f"[用量] 合计: {YongLiang_ShuJu['zongBaiFen']}%  剩余: {YongLiang_ShuJu['shengYuBaiFen']}%")
+            print(f"[用量] Auto: {YongLiang_ShuJu['autoBaiFen']}%  API: {YongLiang_ShuJu['apiBaiFen']}%")
             if YongLiang_ShuJu.get('jiFeiKaiShi'):
                 print(f"[用量] 计费周期: {YongLiang_ShuJu['jiFeiKaiShi']} 至 {YongLiang_ShuJu['jiFeiJieShu']}")
         else:
@@ -1942,7 +1952,7 @@ def ZhuChengXu():
         YongLiang_ShuJu = {
             "zongYong": 0, "zongXian": 0, "shengYu": 0,
             "gaoJiYong": 0, "gaoJiXian": 0,
-            "zongBaiFen": 0, "apiBaiFen": 0,
+            "zongBaiFen": 0, "shengYuBaiFen": 100, "apiBaiFen": 0, "autoBaiFen": 0,
             "jiFeiKaiShi": "", "jiFeiJieShu": "",
             "gengXinShiJian": "", "jiHua": "", "youXiao": False
         }
