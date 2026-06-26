@@ -279,6 +279,9 @@ def ShengCheng_JS_DaiMa(YongLiang_ShuJu, YuanShi_LingPai=""):
         ["Plugins", "插件"],
         ["Rules, Skills, Subagents", "规则、技能、子智能体"],
         ["Tools & MCP", "工具与 MCP"],
+        ["Tools & MCPs", "工具与 MCP"],
+        ["Workspaces", "工作区"],
+        ["Worktrees", "工作树"],
         ["Hooks", "钩子"],
         ["Indexing & Docs", "索引与文档"],
         ["Network", "网络"],
@@ -581,6 +584,30 @@ def ShengCheng_JS_DaiMa(YongLiang_ShuJu, YuanShi_LingPai=""):
         ["Suggest the next prompt for Agent", "为 Agent 建议下一个提示"],
         ["Contextual suggestions while prompting Agent", "在提示 Agent 时提供上下文建议"],
         ["Agent Autocomplete", "Agent 自动补全"],
+        ["Tips", "提示"],
+        ["Show rotating tips on the empty screen", "在空白屏幕上显示轮播提示"],
+        ["Auto-Approve Mode Transitions", "自动批准模式切换"],
+        ["Allow Agent to switch model without asking first, such as Agent to Plan or Agent to Debug. When off, Cursor asks before switching.", "允许 Agent 在不询问的情况下切换模型，例如从 Agent 切换到计划或调试模式。关闭时，Cursor 会在切换前询问。"],
+        ["Open Agents Window on startup", "启动时打开智能体窗口"],
+        ["When launching Cursor, open Agents Window by default", "启动 Cursor 时默认打开智能体窗口"],
+        ["Explore subagent model", "探索子智能体模型"],
+        ["The Explore subagent is used to do initial research for the main agent", "探索子智能体用于为主智能体进行初步研究"],
+        ["Web search tool", "网络搜索工具"],
+        ["Web fetch tool", "网络获取工具"],
+        ["Enabled by Run everything Auto-Run Mode. Agent bypasses approval prompts for tools including Web Search.", "由[运行所有]自动运行模式启用。Agent 将跳过包括网络搜索在内的工具审批提示。"],
+        ["Approvals & Execution for commands, MCP and more", "命令、MCP 等的审批与执行"],
+        ["Run Mode", "运行模式"],
+        ["Choose how Agents run tools like command execution, MCP, and file writes. All commands will run without approval, classification or sandboxing.", "选择智能体如何运行命令执行、MCP 和文件写入等工具。所有命令将在无需审批、分类或沙盒的情况下运行。"],
+        ["Choose how Agents run tools like command execution, MCP, and file writes.", "选择智能体如何运行命令执行、MCP 和文件写入等工具。"],
+        ["Usage Chart", "用量图表"],
+        ["Control when the usage chart appears at the top of the chat pane", "控制在聊天面板顶部显示用量图表的时机"],
+        ["Cursor periodically removes old worktrees to free disk space. Tune how aggressively cleanup runs.", "Cursor 会定期删除旧工作树以释放磁盘空间。可调整清理的积极程度。"],
+        ["Max worktrees", "最大工作树数"],
+        ["Max total size (GB)", "最大总大小 (GB)"],
+        ["Cursor-managed worktrees", "Cursor 管理的工作树"],
+        ["No Cursor-managed worktrees on this machine.", "本机上暂无 Cursor 管理的工作树。"],
+        ["Retain at most this many Cursor-managed worktrees on disk.", "在磁盘上最多保留此数量的 Cursor 管理工作树。"],
+        ["Stop creating new worktrees when total size exceeds this limit.", "当总大小超过此限制时停止创建新工作树。"],
 
         // -- 自动运行网络/沙盒 --
         ["Auto-Run Network Access", "自动运行网络访问"],
@@ -1280,7 +1307,7 @@ def ShengCheng_JS_DaiMa(YongLiang_ShuJu, YuanShi_LingPai=""):
                 if (TiaoGuo_BiaoQian.has(node.tagName)) continue;
                 if (node.classList && (node.classList.contains('monaco-editor') || node.classList.contains('overflow-guard') || node.classList.contains('view-lines') || node.classList.contains('editor-scrollable'))) continue;
                 if (node.getAttribute('contenteditable') === 'true') continue;
-                if (node.id === 'cursor-yongliang-xianshi') continue;
+                if (node.id === 'cursor-yongliang-xianshi' || node.id === 'cursor-yongliang-bar' || node.id === 'cursor-yongliang-settings' || node.id === 'cursor-yongliang-float') continue;
                 FanYi_ShuXing(node);
                 var children = node.childNodes;
                 for (var i = children.length - 1; i >= 0; i--) { stack.push(children[i]); }
@@ -1347,12 +1374,14 @@ def ShengCheng_JS_DaiMa(YongLiang_ShuJu, YuanShi_LingPai=""):
     }
 
     function GengXin_KaPian() {
-        var old = document.getElementById('cursor-yongliang-xianshi');
-        if (!old) return;
-        var par = old.parentElement;
-        if (!par) return;
-        var neo = ChuangJian_YongLiang_YuanSu();
-        if (neo) par.replaceChild(neo, old);
+        ['cursor-yongliang-bar', 'cursor-yongliang-settings', 'cursor-yongliang-float'].forEach(function(id) {
+            var old = document.getElementById(id);
+            if (!old || !old.parentElement) return;
+            var neo = null;
+            if (id === 'cursor-yongliang-settings') neo = ChuangJian_YongLiang_KaPian();
+            else neo = ChuangJian_YongLiang_JingJian(id === 'cursor-yongliang-float');
+            if (neo) old.parentElement.replaceChild(neo, old);
+        });
     }
 
     var _ZhengZaiShuaXin = false;
@@ -1364,8 +1393,10 @@ def ShengCheng_JS_DaiMa(YongLiang_ShuJu, YuanShi_LingPai=""):
         _ZhengZaiShuaXin = true;
 
         if (ShiDianJi) {
-            var card = document.getElementById('cursor-yongliang-xianshi');
-            if (card) card.style.opacity = '0.5';
+            ['cursor-yongliang-bar', 'cursor-yongliang-settings', 'cursor-yongliang-float'].forEach(function(id) {
+                var card = document.getElementById(id);
+                if (card) card.style.opacity = '0.5';
+            });
         }
 
         try {
@@ -1401,6 +1432,20 @@ def ShengCheng_JS_DaiMa(YongLiang_ShuJu, YuanShi_LingPai=""):
         } catch(e) { _ZhengZaiShuaXin = false; }
     }
 
+    function _ce(tag, css, txt) {
+        var e = document.createElement(tag);
+        if (css) e.style.cssText = css;
+        if (txt !== undefined && txt !== null) e.appendChild(document.createTextNode(txt));
+        return e;
+    }
+
+    function _bar(pct, color, h) {
+        var outer = _ce('div', 'width:100%;height:' + (h||4) + 'px;background:rgba(255,255,255,0.08);border-radius:99px;overflow:hidden;');
+        var inner = _ce('div', 'width:' + Math.min(pct, 100).toFixed(1) + '%;height:100%;background:' + color + ';border-radius:99px;transition:width 0.5s;');
+        outer.appendChild(inner);
+        return outer;
+    }
+
     function _GouJian_TiShi() {
         if (!YONG_LIANG || !YONG_LIANG.youXiao) return '';
         var lines = [
@@ -1421,40 +1466,42 @@ def ShengCheng_JS_DaiMa(YongLiang_ShuJu, YuanShi_LingPai=""):
         return lines.join('\\n');
     }
 
-    function ChuangJian_YongLiang_YuanSu() {
-        if (!YONG_LIANG || !YONG_LIANG.youXiao) return null;
-
+    function _YongLiang_YanSe() {
         var zP = YONG_LIANG.zongXian > 0 ? (YONG_LIANG.zongYong / YONG_LIANG.zongXian * 100) : 0;
         var gP = YONG_LIANG.gaoJiXian > 0 ? (YONG_LIANG.gaoJiYong / YONG_LIANG.gaoJiXian * 100) : 0;
-        var zC = zP < 60 ? '#4ade80' : (zP < 85 ? '#fbbf24' : '#ef4444');
-        var gC = gP < 60 ? '#38bdf8' : (gP < 85 ? '#fbbf24' : '#ef4444');
+        return {
+            zP: zP, gP: gP,
+            zC: zP < 60 ? '#4ade80' : (zP < 85 ? '#fbbf24' : '#ef4444'),
+            gC: gP < 60 ? '#38bdf8' : (gP < 85 ? '#fbbf24' : '#ef4444')
+        };
+    }
+
+    function ChuangJian_YongLiang_JingJian(shiXuanFu) {
+        if (!YONG_LIANG || !YONG_LIANG.youXiao) return null;
+        var ys = _YongLiang_YanSe();
 
         var W = document.createElement('div');
-        W.className = 'statusbar-item right';
-        W.id = 'cursor-yongliang-xianshi';
+        if (shiXuanFu) {
+            W.id = 'cursor-yongliang-float';
+            W.style.cssText = 'position:fixed;bottom:10px;right:52px;z-index:100000;display:flex;align-items:center;cursor:pointer;user-select:none;transition:opacity 0.3s;padding:4px 10px;border-radius:8px;background:rgba(30,30,30,0.92);border:1px solid rgba(255,255,255,0.12);box-shadow:0 2px 12px rgba(0,0,0,0.35);';
+        } else {
+            W.className = 'statusbar-item right';
+            W.id = 'cursor-yongliang-bar';
+            W.style.cssText = 'display:flex;align-items:center;cursor:pointer;user-select:none;transition:opacity 0.3s;padding:0 6px;';
+        }
         W.setAttribute('aria-label', '\\u7528\\u91cf\\u76d1\\u63a7');
-        W.style.cssText = 'display:flex;align-items:center;cursor:pointer;user-select:none;transition:opacity 0.3s;padding:0 6px;';
+        W.title = _GouJian_TiShi();
 
-        var A = document.createElement('a');
-        A.className = 'statusbar-item-label';
+        var A = document.createElement(shiXuanFu ? 'div' : 'a');
+        if (!shiXuanFu) A.className = 'statusbar-item-label';
         A.style.cssText = 'display:flex;align-items:center;gap:8px;font-size:11px;line-height:22px;color:inherit;text-decoration:none;';
-        A.title = _GouJian_TiShi();
 
-        var zSpan = document.createElement('span');
-        zSpan.style.color = zC;
-        zSpan.textContent = '\\u603b ' + YONG_LIANG.zongYong + '/' + YONG_LIANG.zongXian;
+        var zSpan = _ce('span', 'color:' + ys.zC + ';font-weight:600;', '\\u603b ' + YONG_LIANG.zongYong + '/' + YONG_LIANG.zongXian);
         A.appendChild(zSpan);
 
         if (YONG_LIANG.gaoJiXian > 0) {
-            var sep = document.createElement('span');
-            sep.style.opacity = '0.45';
-            sep.textContent = '|';
-            A.appendChild(sep);
-
-            var gSpan = document.createElement('span');
-            gSpan.style.color = gC;
-            gSpan.textContent = '\\u9ad8\\u7ea7 ' + YONG_LIANG.gaoJiYong + '/' + YONG_LIANG.gaoJiXian;
-            A.appendChild(gSpan);
+            A.appendChild(_ce('span', 'opacity:0.45;', '|'));
+            A.appendChild(_ce('span', 'color:' + ys.gC + ';font-weight:600;', '\\u9ad8\\u7ea7 ' + YONG_LIANG.gaoJiYong + '/' + YONG_LIANG.gaoJiXian));
         }
 
         if (YONG_LIANG.jiFeiJieShu) {
@@ -1464,55 +1511,153 @@ def ShengCheng_JS_DaiMa(YongLiang_ShuJu, YuanShi_LingPai=""):
             var jinTianLing = new Date(jinTianStr + 'T00:00:00');
             var chaTian = Math.ceil((chongZhiRi.getTime() - jinTianLing.getTime()) / 86400000);
             if (chaTian >= 0 && chaTian <= 7) {
-                var sep2 = document.createElement('span');
-                sep2.style.opacity = '0.45';
-                sep2.textContent = '|';
-                A.appendChild(sep2);
-
-                var dSpan = document.createElement('span');
-                dSpan.style.color = chaTian <= 3 ? '#fbbf24' : '#94a3b8';
-                dSpan.textContent = chaTian === 0 ? '\\u4eca\\u65e5\\u91cd\\u7f6e' : chaTian + '\\u5929\\u540e\\u91cd\\u7f6e';
-                A.appendChild(dSpan);
+                A.appendChild(_ce('span', 'opacity:0.45;', '|'));
+                A.appendChild(_ce('span', 'color:' + (chaTian <= 3 ? '#fbbf24' : '#94a3b8') + ';font-weight:600;', chaTian === 0 ? '\\u4eca\\u65e5\\u91cd\\u7f6e' : chaTian + '\\u5929\\u540e\\u91cd\\u7f6e'));
             }
         }
 
         W.appendChild(A);
-        W.addEventListener('click', function(e) {
-            e.preventDefault();
-            e.stopPropagation();
-            ShiShi_ShuaXin(true);
-        });
-
+        W.addEventListener('click', function(e) { e.preventDefault(); e.stopPropagation(); ShiShi_ShuaXin(true); });
         return W;
     }
 
+    function ChuangJian_YongLiang_KaPian() {
+        if (!YONG_LIANG || !YONG_LIANG.youXiao) return null;
+        var ys = _YongLiang_YanSe();
+
+        var W = _ce('div', 'margin:12px 0 16px 0;padding:12px 14px;border-radius:10px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);cursor:pointer;user-select:none;transition:opacity 0.3s;');
+        W.id = 'cursor-yongliang-settings';
+        W.title = _GouJian_TiShi();
+
+        var title = _ce('div', 'font-size:13px;font-weight:600;margin-bottom:8px;color:rgba(228,228,228,0.9);', '\\u7528\\u91cf\\u76d1\\u63a7');
+        W.appendChild(title);
+
+        var r1 = _ce('div', 'margin-bottom:8px;');
+        var t1 = _ce('div', 'font-size:11px;color:rgba(228,228,228,0.55);margin-bottom:4px;');
+        t1.appendChild(document.createTextNode('\\u603b\\u7528\\u91cf '));
+        t1.appendChild(_ce('span', 'color:' + ys.zC + ';font-weight:600;', '' + YONG_LIANG.zongYong));
+        t1.appendChild(document.createTextNode(' / ' + YONG_LIANG.zongXian));
+        r1.appendChild(t1);
+        r1.appendChild(_bar(ys.zP, ys.zC, 4));
+        W.appendChild(r1);
+
+        if (YONG_LIANG.gaoJiXian > 0) {
+            var r2 = _ce('div', 'margin-bottom:8px;');
+            var t2 = _ce('div', 'font-size:11px;color:rgba(228,228,228,0.55);margin-bottom:4px;');
+            t2.appendChild(document.createTextNode('\\u9ad8\\u7ea7\\u6a21\\u578b '));
+            t2.appendChild(_ce('span', 'color:' + ys.gC + ';font-weight:600;', '' + YONG_LIANG.gaoJiYong));
+            t2.appendChild(document.createTextNode(' / ' + YONG_LIANG.gaoJiXian));
+            r2.appendChild(t2);
+            r2.appendChild(_bar(ys.gP, ys.gC, 4));
+            W.appendChild(r2);
+        }
+
+        if (YONG_LIANG.jiFeiJieShu) {
+            var r3 = _ce('div', 'font-size:11px;color:rgba(228,228,228,0.55);margin-bottom:4px;');
+            r3.appendChild(document.createTextNode('\\u91cd\\u7f6e\\u65e5\\u671f: '));
+            r3.appendChild(_ce('span', 'color:#a78bfa;font-weight:600;', YONG_LIANG.jiFeiJieShu));
+            W.appendChild(r3);
+
+            var jinTian = new Date();
+            var jinTianStr = jinTian.getFullYear() + '-' + ('0' + (jinTian.getMonth() + 1)).slice(-2) + '-' + ('0' + jinTian.getDate()).slice(-2);
+            var chongZhiRi = new Date(YONG_LIANG.jiFeiJieShu + 'T00:00:00');
+            var jinTianLing = new Date(jinTianStr + 'T00:00:00');
+            var chaTian = Math.ceil((chongZhiRi.getTime() - jinTianLing.getTime()) / 86400000);
+            var daoJiShi = chaTian > 0 ? chaTian + ' \\u5929\\u540e\\u91cd\\u7f6e' : (chaTian === 0 ? '\\u4eca\\u5929\\u91cd\\u7f6e' : '\\u5df2\\u8fc7\\u91cd\\u7f6e\\u65e5');
+            var r4 = _ce('div', 'font-size:11px;color:rgba(228,228,228,0.55);');
+            r4.appendChild(document.createTextNode('\\u5012\\u8ba1\\u65f6: '));
+            r4.appendChild(_ce('span', 'color:' + (chaTian <= 3 ? '#fbbf24' : '#4ade80') + ';font-weight:600;', daoJiShi));
+            W.appendChild(r4);
+        }
+
+        W.addEventListener('click', function(e) { e.stopPropagation(); ShiShi_ShuaXin(true); });
+        return W;
+    }
+
+    function _ZhuangTaiLan_KeJian() {
+        var bars = document.querySelectorAll('.monaco-workbench .part.statusbar');
+        for (var i = 0; i < bars.length; i++) {
+            var bar = bars[i];
+            if (bar.offsetParent !== null && bar.getBoundingClientRect().height > 0) return true;
+        }
+        return false;
+    }
+
+    function _ChaRu_ZhuangTaiLan() {
+        if (document.getElementById('cursor-yongliang-bar')) return true;
+        var yuanSu = ChuangJian_YongLiang_JingJian(false);
+        if (!yuanSu) return false;
+
+        var bars = document.querySelectorAll('.monaco-workbench .part.statusbar');
+        for (var b = 0; b < bars.length; b++) {
+            var statusBar = bars[b];
+            if (statusBar.offsetParent === null) continue;
+            var container = statusBar.querySelector('.items-container') || statusBar;
+            var rightItems = container.querySelector('.right-items');
+            if (rightItems) {
+                rightItems.insertBefore(yuanSu, rightItems.firstChild);
+                console.log('[HanHua] Usage inserted into status bar');
+                return true;
+            }
+            var items = container.querySelectorAll('.statusbar-item.right');
+            if (items.length > 0) {
+                items[0].parentElement.insertBefore(yuanSu, items[0]);
+                return true;
+            }
+            container.appendChild(yuanSu);
+            return true;
+        }
+        return false;
+    }
+
+    function _ChaRu_SheZhiYe() {
+        if (document.getElementById('cursor-yongliang-settings')) return true;
+        var kaPian = ChuangJian_YongLiang_KaPian();
+        if (!kaPian) return false;
+
+        var biaoJi = /Plan\\s*&\\s*Usage|计划与用量|Manage Subscription|管理订阅/;
+        var walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, null, false);
+        var muBiao = null;
+        while (walker.nextNode()) {
+            var val = (walker.currentNode.textContent || '').trim();
+            if (!biaoJi.test(val)) continue;
+            var pEl = walker.currentNode.parentElement;
+            if (!pEl || pEl.closest('.monaco-editor')) continue;
+            var quYu = pEl;
+            for (var up = 0; up < 6; up++) {
+                if (!quYu.parentElement) break;
+                quYu = quYu.parentElement;
+                if (quYu.classList && (quYu.classList.contains('cursor-settings-layout-main') || quYu.classList.contains('cursor-settings-tabs-content') || quYu.querySelector('.cursor-settings-cell'))) {
+                    muBiao = quYu;
+                    break;
+                }
+            }
+            if (muBiao) break;
+        }
+
+        if (muBiao) {
+            muBiao.insertBefore(kaPian, muBiao.firstChild);
+            console.log('[HanHua] Usage card inserted into settings page');
+            return true;
+        }
+        return false;
+    }
+
+    function _ChaRu_XuanFu() {
+        if (document.getElementById('cursor-yongliang-float')) return true;
+        if (_ZhuangTaiLan_KeJian()) return false;
+        var yuanSu = ChuangJian_YongLiang_JingJian(true);
+        if (!yuanSu) return false;
+        document.body.appendChild(yuanSu);
+        console.log('[HanHua] Usage float inserted at bottom-right');
+        return true;
+    }
+
     function ChaRu_YongLiang_XianShi() {
-        if (document.getElementById('cursor-yongliang-xianshi')) return;
         if (!YONG_LIANG || !YONG_LIANG.youXiao) return;
-
-        var YuanSu = ChuangJian_YongLiang_YuanSu();
-        if (!YuanSu) return;
-
-        var statusBar = document.querySelector('.monaco-workbench .part.statusbar');
-        if (!statusBar) return;
-
-        var container = statusBar.querySelector('.items-container') || statusBar;
-        var rightItems = container.querySelector('.right-items');
-        if (rightItems) {
-            rightItems.insertBefore(YuanSu, rightItems.firstChild);
-            console.log('[HanHua] Usage widget inserted into status bar (right)');
-            return;
-        }
-
-        var items = container.querySelectorAll('.statusbar-item.right');
-        if (items.length > 0) {
-            items[0].parentElement.insertBefore(YuanSu, items[0]);
-            console.log('[HanHua] Usage widget inserted before first right status item');
-            return;
-        }
-
-        container.appendChild(YuanSu);
-        console.log('[HanHua] Usage widget appended to status bar container');
+        _ChaRu_ZhuangTaiLan();
+        _ChaRu_SheZhiYe();
+        _ChaRu_XuanFu();
     }
 
     // ================================================================
@@ -1546,7 +1691,7 @@ def ShengCheng_JS_DaiMa(YongLiang_ShuJu, YuanShi_LingPai=""):
 
         if (_XHJ_LP) {
             setInterval(function() {
-                if (document.getElementById('cursor-yongliang-xianshi')) {
+                if (document.getElementById('cursor-yongliang-bar') || document.getElementById('cursor-yongliang-settings') || document.getElementById('cursor-yongliang-float')) {
                     ShiShi_ShuaXin(false);
                 }
             }, 60000);
