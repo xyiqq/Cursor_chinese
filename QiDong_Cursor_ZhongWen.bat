@@ -13,10 +13,10 @@ echo.
 REM ============================================================
 REM ★★★ 用户配置区域 - 请根据您的实际路径修改 ★★★
 REM ============================================================
-set "CURSOR_EXE=D:\Tools\cursor\Cursor.exe"
-set "CURSOR_USER_DIR=D:\Tools\cursor\user"
-set "HANHUA_SCRIPT=E:\Cursor_chinese\CursorHanHua_GongJu.py"
-set "WORKBENCH_HTML=D:\Tools\cursor\resources\app\out\vs\code\electron-sandbox\workbench\workbench.html"
+set "CURSOR_EXE=%LOCALAPPDATA%\Programs\cursor\Cursor.exe"
+set "CURSOR_USER_DIR=%APPDATA%\Cursor"
+set "HANHUA_SCRIPT=%~dp0CursorHanHua_GongJu.py"
+set "WORKBENCH_HTML=%LOCALAPPDATA%\Programs\cursor\resources\app\out\vs\code\electron-sandbox\workbench\workbench.html"
 set "INJECTION_MARKER=CURSOR_HANHUA_INJECTION"
 REM ============================================================
 

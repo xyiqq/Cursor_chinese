@@ -26,12 +26,11 @@ import urllib.error  # HTTP 错误处理
 # ★★★ 用户配置区域 ★★★
 # ============================================================
 
-# Cursor 安装根目录
-CURSOR_AN_ZHUANG_LU_JING = r"D:\Tools\cursor"
+# Cursor 安装根目录（留空则自动检测 Windows 常见安装路径）
+CURSOR_AN_ZHUANG_LU_JING = ""
 
-# Cursor 用户数据目录（存放认证令牌等）
-# 如果使用 --user-data-dir 自定义了目录，请改为对应路径
-CURSOR_SHU_JU_LU_JING = r"D:\Tools\cursor\user"
+# Cursor 用户数据目录（留空则自动检测，或使用 --user-data-dir 自定义目录时手动填写）
+CURSOR_SHU_JU_LU_JING = ""
 
 # 以下路径一般不需要修改
 GONG_ZUO_TAI_HTML_XIANG_DUI = r"resources\app\out\vs\code\electron-sandbox\workbench"  # workbench 目录相对路径
@@ -51,13 +50,55 @@ LING_PAI_JIAN_MING = "cursorAuth/accessToken"  # 访问令牌键名
 YOU_XIANG_JIAN_MING = "cursorAuth/cachedEmail"  # 邮箱键名
 
 
+def _ZiDong_JianCe_AnZhuang_LuJing():
+    """自动检测 Cursor 安装目录（Windows 常见路径）"""
+    HouXuan = [
+        os.path.join(os.environ.get("LOCALAPPDATA", ""), "Programs", "cursor"),
+        os.path.join(os.environ.get("LOCALAPPDATA", ""), "Programs", "Cursor"),
+        r"C:\Program Files\cursor",
+        r"C:\Program Files\Cursor",
+        r"D:\Tools\cursor",
+    ]
+    for LuJing in HouXuan:
+        if not LuJing:
+            continue
+        Html_LuJing = os.path.join(LuJing, GONG_ZUO_TAI_HTML_XIANG_DUI, GONG_ZUO_TAI_HTML_MING)
+        if os.path.exists(Html_LuJing):
+            return LuJing
+    return HouXuan[0] if HouXuan[0] else r"D:\Tools\cursor"
+
+
+def _ZiDong_JianCe_ShuJu_LuJing():
+    """自动检测 Cursor 用户数据目录"""
+    HouXuan = [
+        os.path.join(os.environ.get("APPDATA", ""), "Cursor"),
+        os.path.join(os.environ.get("LOCALAPPDATA", ""), "cursor", "user"),
+        r"D:\Tools\cursor\user",
+    ]
+    for LuJing in HouXuan:
+        Db_LuJing = os.path.join(LuJing, DB_XIANG_DUI_LU_JING)
+        if os.path.exists(Db_LuJing):
+            return LuJing
+    return HouXuan[0] if HouXuan[0] else r"D:\Tools\cursor\user"
+
+
+def HuoQu_AnZhuang_LuJing():
+    """获取最终使用的 Cursor 安装路径"""
+    return CURSOR_AN_ZHUANG_LU_JING or _ZiDong_JianCe_AnZhuang_LuJing()
+
+
+def HuoQu_ShuJu_LuJing():
+    """获取最终使用的 Cursor 用户数据路径"""
+    return CURSOR_SHU_JU_LU_JING or _ZiDong_JianCe_ShuJu_LuJing()
+
+
 # ============================================================
 # ★★★ 认证与 API 函数 ★★★
 # ============================================================
 
 def DuQu_FangWen_LingPai():
     """从 Cursor 本地 state.vscdb 数据库读取访问令牌和用户邮箱"""
-    ShuJuKu_LuJing = os.path.join(CURSOR_SHU_JU_LU_JING, DB_XIANG_DUI_LU_JING)  # 数据库完整路径
+    ShuJuKu_LuJing = os.path.join(HuoQu_ShuJu_LuJing(), DB_XIANG_DUI_LU_JING)  # 数据库完整路径
     if not os.path.exists(ShuJuKu_LuJing):  # 检查数据库是否存在
         print(f"[警告] 未找到 Cursor 数据库: {ShuJuKu_LuJing}")
         return None, None
@@ -948,23 +989,185 @@ def ShengCheng_JS_DaiMa(YongLiang_ShuJu, YuanShi_LingPai=""):
         // ==================== 菜单栏 (Menu Bar) ====================
         ["File", "文件"],
         ["New Agent", "新建智能体"],
+        ["New File", "新建文件"],
         ["Open Folder", "打开文件夹"],
+        ["Open File...", "打开文件..."],
+        ["Open Recent", "打开最近"],
+        ["Add Folder to Workspace", "将文件夹添加到工作区"],
+        ["Save Workspace As...", "将工作区另存为..."],
+        ["Duplicate Workspace", "复制工作区"],
+        ["Close Folder", "关闭文件夹"],
+        ["Close Workspace", "关闭工作区"],
         ["New Terminal", "新建终端"],
         ["New Browser", "新建浏览器"],
         ["Open Editor Window", "打开编辑器窗口"],
+        ["New Window", "新建窗口"],
+        ["Close Window", "关闭窗口"],
+        ["Close Editor", "关闭编辑器"],
+        ["Save", "保存"],
+        ["Save As", "另存为"],
+        ["Save All", "全部保存"],
+        ["Revert File", "还原文件"],
         ["Exit", "退出"],
+        ["Edit", "编辑"],
+        ["Selection", "选择"],
+        ["View", "视图"],
+        ["Go", "转到"],
+        ["Run", "运行"],
+        ["Terminal", "终端"],
+        ["Window", "窗口"],
+        ["Help", "帮助"],
         ["Undo", "撤销"],
         ["Redo", "重做"],
         ["Cut", "剪切"],
+        ["Copy", "复制"],
         ["Paste", "粘贴"],
         ["Select All", "全选"],
+        ["Find", "查找"],
+        ["Replace", "替换"],
+        ["Find in Selection", "在选定内容中查找"],
+        ["Find in Files", "在文件中查找"],
+        ["Replace in Files", "在文件中替换"],
+        ["Format Document", "格式化文档"],
+        ["Format Selection", "格式化选定内容"],
+        ["Format Document With...", "使用...格式化文档"],
+        ["Toggle Line Comment", "切换行注释"],
+        ["Toggle Block Comment", "切换块注释"],
+        ["Emmet: Expand Abbreviation", "Emmet：展开缩写"],
+        ["Go to Definition", "转到定义"],
+        ["Go to References", "转到引用"],
+        ["Peek Definition", "速览定义"],
+        ["Rename Symbol", "重命名符号"],
+        ["Change All Occurrences", "更改所有匹配项"],
+        ["Refactor...", "重构..."],
+        ["Source Action...", "源代码操作..."],
         ["Open Changes", "打开更改"],
         ["Open Browser", "打开浏览器"],
         ["Open File", "打开文件"],
         ["Open Terminal", "打开终端"],
-        ["Help", "帮助"],
+        ["Command Palette...", "命令面板..."],
+        ["Quick Open...", "快速打开..."],
+        ["Show All Commands", "显示所有命令"],
+        ["Go to File...", "转到文件..."],
+        ["Go to Symbol in Workspace...", "转到工作区中的符号..."],
+        ["Go to Line/Column...", "转到行/列..."],
+        ["Go Back", "后退"],
+        ["Go Forward", "前进"],
+        ["Explorer", "资源管理器"],
+        ["Search", "搜索"],
+        ["Source Control", "源代码管理"],
+        ["Run and Debug", "运行和调试"],
+        ["Extensions", "扩展"],
+        ["Problems", "问题"],
+        ["Output", "输出"],
+        ["Debug Console", "调试控制台"],
+        ["Start Debugging", "启动调试"],
+        ["Run Without Debugging", "运行但不调试"],
+        ["Stop Debugging", "停止调试"],
+        ["Restart Debugging", "重新启动调试"],
+        ["Toggle Breakpoint", "切换断点"],
+        ["Step Over", "单步跳过"],
+        ["Step Into", "单步调试"],
+        ["Step Out", "单步跳出"],
+        ["Continue", "继续"],
+        ["Toggle Primary Side Bar", "切换主侧栏"],
+        ["Toggle Panel", "切换面板"],
+        ["Toggle Terminal", "切换终端"],
+        ["Toggle Panel Visibility", "切换面板可见性"],
+        ["Toggle Side Bar Visibility", "切换侧栏可见性"],
+        ["Toggle Activity Bar Visibility", "切换活动栏可见性"],
+        ["Toggle Status Bar Visibility", "切换状态栏可见性"],
+        ["Toggle Full Screen", "切换全屏"],
+        ["Toggle Minimap", "切换小地图"],
+        ["Toggle Breadcrumbs", "切换面包屑导航"],
+        ["Toggle Word Wrap", "切换自动换行"],
+        ["Toggle Developer Tools", "切换开发人员工具"],
+        ["Split Editor", "拆分编辑器"],
+        ["Join Editor Group", "合并编辑器组"],
+        ["Move Editor into New Window", "将编辑器移动到新窗口"],
+        ["Move Side Bar Left", "将侧栏移到左侧"],
+        ["Move Side Bar Right", "将侧栏移到右侧"],
+        ["Primary Side Bar", "主侧栏"],
+        ["Secondary Side Bar", "辅助侧栏"],
+        ["Panel Position", "面板位置"],
+        ["Zen Mode", "禅模式"],
+        ["Appearance", "外观"],
+        ["Zoom In", "放大"],
+        ["Zoom Out", "缩小"],
+        ["Reset Zoom", "重置缩放"],
+        ["Copy Path", "复制路径"],
+        ["Copy Relative Path", "复制相对路径"],
+        ["Reveal in File Explorer", "在文件资源管理器中显示"],
+        ["Reveal in Finder", "在 Finder 中显示"],
+        ["Reveal in Explorer", "在资源管理器中显示"],
+        ["Open in Integrated Terminal", "在集成终端中打开"],
+        ["Switch Window...", "切换窗口..."],
+        ["Merge All Windows", "合并所有窗口"],
+        ["Bring All to Front", "全部置于顶层"],
+        ["Minimize", "最小化"],
+        ["Zoom", "缩放"],
+        ["Hide Others", "隐藏其他"],
+        ["Show All", "显示全部"],
+        ["Services", "服务"],
+        ["Hide Cursor", "隐藏 Cursor"],
+        ["Quit Cursor", "退出 Cursor"],
+        ["About Cursor", "关于 Cursor"],
+        ["Check for Updates", "检查更新"],
+        ["Check for Updates...", "检查更新..."],
+        ["Documentation", "文档"],
+        ["Release Notes", "发行说明"],
+        ["Report Issue", "报告问题"],
+        ["Open Logs Folder", "打开日志文件夹"],
+        ["Open Process Explorer", "打开进程资源管理器"],
+        ["Configure Runtime Arguments", "配置运行时参数"],
+        ["Cursor Settings", "Cursor 设置"],
+        ["VS Code Settings", "VS Code 设置"],
+        ["User Settings", "用户设置"],
+        ["Workspace Settings", "工作区设置"],
+        ["Folder Settings", "文件夹设置"],
+        ["Open User Settings (JSON)", "打开用户设置 (JSON)"],
+        ["Open Workspace Settings (JSON)", "打开工作区设置 (JSON)"],
+        ["Preferences: Open Settings", "首选项：打开设置"],
+        ["Preferences: Open Keyboard Shortcuts", "首选项：打开键盘快捷键"],
+        ["Color Theme...", "颜色主题..."],
+        ["File Icon Theme...", "文件图标主题..."],
+        ["Product Icon Theme...", "产品图标主题..."],
+        ["Install Local Extensions...", "安装本地扩展..."],
+        ["Install from VSIX...", "从 VSIX 安装..."],
+        ["Show Installed Extensions", "显示已安装的扩展"],
+        ["Show Recommended Extensions", "显示推荐扩展"],
+        ["Show Popular Extensions", "显示热门扩展"],
+        ["Show Built-in Extensions", "显示内置扩展"],
+        ["Enable All Extensions", "启用所有扩展"],
+        ["Disable All Extensions", "禁用所有扩展"],
+        ["Update All Extensions", "更新所有扩展"],
+        ["Restart Extensions", "重启扩展"],
+        ["Developer: Reload Window", "开发人员：重新加载窗口"],
+        ["Show Explorer", "显示资源管理器"],
+        ["Show Search", "显示搜索"],
+        ["Show Source Control", "显示源代码管理"],
+        ["Show Extensions", "显示扩展"],
+        ["Show Run and Debug", "显示运行和调试"],
+        ["Focus on Chat View", "聚焦聊天视图"],
+        ["Open Chat", "打开聊天"],
+        ["New Chat", "新建聊天"],
+        ["Agent Layout", "智能体布局"],
+        ["Editor Layout", "编辑器布局"],
+        ["Activity Bar Position", "活动栏位置"],
+        ["Arrange Icons", "排列图标"],
         ["Command Palette", "命令面板"],
         ["View License", "查看许可证"],
+        ["More Actions...", "更多操作..."],
+        ["Application Menu", "应用程序菜单"],
+        ["Match Case", "区分大小写"],
+        ["Match Whole Word", "全字匹配"],
+        ["Use Regular Expression", "使用正则表达式"],
+        ["Preserve Case", "保留大小写"],
+        ["Type to search", "输入以搜索"],
+        ["No results found.", "未找到结果。"],
+        ["Collapse All", "全部折叠"],
+        ["In Progress", "进行中"],
+        ["Close Dialog", "关闭对话框"],
 
         // ==================== Command Palette ====================
         ["Search files, actions, agents...", "搜索文件、操作、智能体..."],
@@ -1198,18 +1401,24 @@ def ShengCheng_JS_DaiMa(YongLiang_ShuJu, YuanShi_LingPai=""):
         } catch(e) { _ZhengZaiShuaXin = false; }
     }
 
-    function _ce(tag, css, txt) {
-        var e = document.createElement(tag);
-        if (css) e.style.cssText = css;
-        if (txt) e.appendChild(document.createTextNode(txt));
-        return e;
-    }
-
-    function _bar(pct, color, h) {
-        var outer = _ce('div', 'width:100%;height:' + (h||4) + 'px;background:rgba(255,255,255,0.08);border-radius:99px;overflow:hidden;');
-        var inner = _ce('div', 'width:' + Math.min(pct, 100).toFixed(1) + '%;height:100%;background:' + color + ';border-radius:99px;transition:width 0.5s;');
-        outer.appendChild(inner);
-        return outer;
+    function _GouJian_TiShi() {
+        if (!YONG_LIANG || !YONG_LIANG.youXiao) return '';
+        var lines = [
+            '\\u603b\\u7528\\u91cf: ' + YONG_LIANG.zongYong + ' / ' + YONG_LIANG.zongXian,
+            '\\u9ad8\\u7ea7\\u6a21\\u578b: ' + YONG_LIANG.gaoJiYong + ' / ' + YONG_LIANG.gaoJiXian
+        ];
+        if (YONG_LIANG.jiFeiJieShu) {
+            lines.push('\\u91cd\\u7f6e\\u65e5\\u671f: ' + YONG_LIANG.jiFeiJieShu);
+            var jinTian = new Date();
+            var jinTianStr = jinTian.getFullYear() + '-' + ('0' + (jinTian.getMonth() + 1)).slice(-2) + '-' + ('0' + jinTian.getDate()).slice(-2);
+            var chongZhiRi = new Date(YONG_LIANG.jiFeiJieShu + 'T00:00:00');
+            var jinTianLing = new Date(jinTianStr + 'T00:00:00');
+            var chaTian = Math.ceil((chongZhiRi.getTime() - jinTianLing.getTime()) / 86400000);
+            var daoJiShi = chaTian > 0 ? chaTian + ' \\u5929\\u540e\\u91cd\\u7f6e' : (chaTian === 0 ? '\\u4eca\\u5929\\u91cd\\u7f6e' : '\\u5df2\\u8fc7\\u91cd\\u7f6e\\u65e5');
+            lines.push('\\u5012\\u8ba1\\u65f6: ' + daoJiShi);
+        }
+        lines.push('\\u70b9\\u51fb\\u5237\\u65b0\\u7528\\u91cf');
+        return lines.join('\\n');
     }
 
     function ChuangJian_YongLiang_YuanSu() {
@@ -1220,82 +1429,61 @@ def ShengCheng_JS_DaiMa(YongLiang_ShuJu, YuanShi_LingPai=""):
         var zC = zP < 60 ? '#4ade80' : (zP < 85 ? '#fbbf24' : '#ef4444');
         var gC = gP < 60 ? '#38bdf8' : (gP < 85 ? '#fbbf24' : '#ef4444');
 
-        var W = _ce('div', 'margin:6px 0 2px 0;cursor:pointer;user-select:none;transition:opacity 0.3s;');
+        var W = document.createElement('div');
+        W.className = 'statusbar-item right';
         W.id = 'cursor-yongliang-xianshi';
-        W.title = '\\u70b9\\u51fb\\u5237\\u65b0\\u7528\\u91cf\\u6570\\u636e';
-        W.addEventListener('click', function(e) { e.stopPropagation(); ShiShi_ShuaXin(true); });
+        W.setAttribute('aria-label', '\\u7528\\u91cf\\u76d1\\u63a7');
+        W.style.cssText = 'display:flex;align-items:center;cursor:pointer;user-select:none;transition:opacity 0.3s;padding:0 6px;';
 
-        var r1 = _ce('div', 'margin-bottom:4px;');
-        var t1 = _ce('div', 'font-size:11px;color:rgba(228,228,228,0.55);margin-bottom:2px;');
-        t1.appendChild(document.createTextNode('\\u603b\\u7528\\u91cf '));
-        t1.appendChild(_ce('span', 'color:' + zC + ';font-weight:600;', '' + YONG_LIANG.zongYong));
-        t1.appendChild(document.createTextNode(' / ' + YONG_LIANG.zongXian));
-        r1.appendChild(t1);
-        r1.appendChild(_bar(zP, zC, 3));
-        W.appendChild(r1);
+        var A = document.createElement('a');
+        A.className = 'statusbar-item-label';
+        A.style.cssText = 'display:flex;align-items:center;gap:8px;font-size:11px;line-height:22px;color:inherit;text-decoration:none;';
+        A.title = _GouJian_TiShi();
+
+        var zSpan = document.createElement('span');
+        zSpan.style.color = zC;
+        zSpan.textContent = '\\u603b ' + YONG_LIANG.zongYong + '/' + YONG_LIANG.zongXian;
+        A.appendChild(zSpan);
 
         if (YONG_LIANG.gaoJiXian > 0) {
-            var r2 = _ce('div', 'margin-bottom:4px;');
-            var t2 = _ce('div', 'font-size:11px;color:rgba(228,228,228,0.55);margin-bottom:2px;');
-            t2.appendChild(document.createTextNode('\\u9ad8\\u7ea7\\u6a21\\u578b '));
-            t2.appendChild(_ce('span', 'color:' + gC + ';font-weight:600;', '' + YONG_LIANG.gaoJiYong));
-            t2.appendChild(document.createTextNode(' / ' + YONG_LIANG.gaoJiXian));
-            r2.appendChild(t2);
-            r2.appendChild(_bar(gP, gC, 3));
-            W.appendChild(r2);
+            var sep = document.createElement('span');
+            sep.style.opacity = '0.45';
+            sep.textContent = '|';
+            A.appendChild(sep);
+
+            var gSpan = document.createElement('span');
+            gSpan.style.color = gC;
+            gSpan.textContent = '\\u9ad8\\u7ea7 ' + YONG_LIANG.gaoJiYong + '/' + YONG_LIANG.gaoJiXian;
+            A.appendChild(gSpan);
         }
 
         if (YONG_LIANG.jiFeiJieShu) {
-            var r3 = _ce('div', 'margin-bottom:2px;');
-            var t3 = _ce('div', 'font-size:11px;color:rgba(228,228,228,0.55);');
-            t3.appendChild(document.createTextNode('\\u91cd\\u7f6e\\u65e5\\u671f :'));
-            t3.appendChild(_ce('span', 'color:#a78bfa;font-weight:600;', YONG_LIANG.jiFeiJieShu));
-            r3.appendChild(t3);
-            W.appendChild(r3);
-
             var jinTian = new Date();
             var jinTianStr = jinTian.getFullYear() + '-' + ('0' + (jinTian.getMonth() + 1)).slice(-2) + '-' + ('0' + jinTian.getDate()).slice(-2);
             var chongZhiRi = new Date(YONG_LIANG.jiFeiJieShu + 'T00:00:00');
             var jinTianLing = new Date(jinTianStr + 'T00:00:00');
             var chaTian = Math.ceil((chongZhiRi.getTime() - jinTianLing.getTime()) / 86400000);
+            if (chaTian >= 0 && chaTian <= 7) {
+                var sep2 = document.createElement('span');
+                sep2.style.opacity = '0.45';
+                sep2.textContent = '|';
+                A.appendChild(sep2);
 
-            var r4 = _ce('div', 'margin-bottom:2px;');
-            var t4 = _ce('div', 'font-size:11px;color:rgba(228,228,228,0.55);');
-            t4.appendChild(document.createTextNode('\\u4eca\\u5929\\u65e5\\u671f :'));
-            t4.appendChild(_ce('span', 'color:#94a3b8;font-weight:600;', jinTianStr));
-            r4.appendChild(t4);
-            W.appendChild(r4);
-
-            var r5 = _ce('div', 'margin-bottom:2px;');
-            var t5 = _ce('div', 'font-size:11px;color:rgba(228,228,228,0.55);');
-            var daoJiShi = chaTian > 0 ? chaTian + ' \\u5929\\u540e\\u91cd\\u7f6e' : (chaTian === 0 ? '\\u4eca\\u5929\\u91cd\\u7f6e' : '\\u5df2\\u8fc7\\u91cd\\u7f6e\\u65e5');
-            var daoJiSe = chaTian <= 3 ? '#fbbf24' : '#4ade80';
-            t5.appendChild(document.createTextNode('\\u5012\\u8ba1\\u65f6   :'));
-            t5.appendChild(_ce('span', 'color:' + daoJiSe + ';font-weight:600;', daoJiShi));
-            r5.appendChild(t5);
-            W.appendChild(r5);
-        }
-
-        return W;
-    }
-
-    function YinCang_TouXiang(container) {
-        var allEl = container.querySelectorAll('div, span');
-        for (var i = 0; i < allEl.length; i++) {
-            var el = allEl[i];
-            var cs = window.getComputedStyle(el);
-            var w = parseInt(cs.width, 10);
-            var h = parseInt(cs.height, 10);
-            var br = cs.borderRadius;
-            if (w >= 20 && w <= 48 && h >= 20 && h <= 48 && w === h && (br === '50%' || br === '9999px' || parseInt(br, 10) >= w / 2)) {
-                var txt = (el.textContent || '').trim();
-                if (txt.length <= 2) {
-                    el.style.display = 'none';
-                    console.log('[HanHua] Avatar hidden:', txt, el.tagName, el.className);
-                    return;
-                }
+                var dSpan = document.createElement('span');
+                dSpan.style.color = chaTian <= 3 ? '#fbbf24' : '#94a3b8';
+                dSpan.textContent = chaTian === 0 ? '\\u4eca\\u65e5\\u91cd\\u7f6e' : chaTian + '\\u5929\\u540e\\u91cd\\u7f6e';
+                A.appendChild(dSpan);
             }
         }
+
+        W.appendChild(A);
+        W.addEventListener('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            ShiShi_ShuaXin(true);
+        });
+
+        return W;
     }
 
     function ChaRu_YongLiang_XianShi() {
@@ -1305,58 +1493,26 @@ def ShengCheng_JS_DaiMa(YongLiang_ShuJu, YuanShi_LingPai=""):
         var YuanSu = ChuangJian_YongLiang_YuanSu();
         if (!YuanSu) return;
 
-        var walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, null, false);
-        var YouXiangJieDian = null;
-        var YouXiangRe = /[a-zA-Z0-9._+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}/;
-        while (walker.nextNode()) {
-            var nd = walker.currentNode;
-            var val = (nd.textContent || '').trim();
-            if (YouXiangRe.test(val) && val.length < 80) {
-                var pEl = nd.parentElement;
-                if (pEl && !pEl.closest('.monaco-editor') && !pEl.closest('textarea') && !pEl.closest('input')) {
-                    YouXiangJieDian = pEl;
-                    console.log('[HanHua] Found email node:', val, pEl.tagName, pEl.className);
-                    break;
-                }
-            }
-        }
+        var statusBar = document.querySelector('.monaco-workbench .part.statusbar');
+        if (!statusBar) return;
 
-        if (!YouXiangJieDian) {
-            console.log('[HanHua] Email node not found, skipping usage card');
+        var container = statusBar.querySelector('.items-container') || statusBar;
+        var rightItems = container.querySelector('.right-items');
+        if (rightItems) {
+            rightItems.insertBefore(YuanSu, rightItems.firstChild);
+            console.log('[HanHua] Usage widget inserted into status bar (right)');
             return;
         }
 
-        var ZhangHuKuai = null;
-        var cur = YouXiangJieDian;
-        for (var up = 0; up < 8; up++) {
-            if (!cur.parentElement || cur.parentElement === document.body) break;
-            var p = cur.parentElement;
-            var txt = p.textContent || '';
-            console.log('[HanHua] depth=' + up, 'tag=' + p.tagName, 'children=' + p.childElementCount, 'txt=' + txt.substring(0, 60));
-            if (/Pro|Plan|\\u4e13\\u4e1a|\\u8ba1\\u5212|\\u7ba1\\u7406|Manage/.test(txt) && p.childElementCount >= 2) {
-                ZhangHuKuai = p;
-                console.log('[HanHua] Account block matched at depth=' + up);
-                break;
-            }
-            cur = p;
-        }
-
-        if (ZhangHuKuai) {
-            YinCang_TouXiang(ZhangHuKuai);
-            ZhangHuKuai.appendChild(YuanSu);
-            console.log('[HanHua] Usage card appended inside account block, children now=' + ZhangHuKuai.childElementCount);
+        var items = container.querySelectorAll('.statusbar-item.right');
+        if (items.length > 0) {
+            items[0].parentElement.insertBefore(YuanSu, items[0]);
+            console.log('[HanHua] Usage widget inserted before first right status item');
             return;
         }
 
-        console.log('[HanHua] Account block not found, using fallback');
-        var parent = YouXiangJieDian;
-        for (var i = 0; i < 3; i++) {
-            if (parent.parentElement && parent.parentElement !== document.body) {
-                parent = parent.parentElement;
-            }
-        }
-        parent.appendChild(YuanSu);
-        console.log('[HanHua] Usage card appended (fallback) to', parent.tagName, parent.className);
+        container.appendChild(YuanSu);
+        console.log('[HanHua] Usage widget appended to status bar container');
     }
 
     // ================================================================
@@ -1412,7 +1568,7 @@ def ShengCheng_JS_DaiMa(YongLiang_ShuJu, YuanShi_LingPai=""):
 
 def HuoQu_GongZuoTai_LuJing():
     """获取 workbench 目录完整路径"""
-    return os.path.join(CURSOR_AN_ZHUANG_LU_JING, GONG_ZUO_TAI_HTML_XIANG_DUI)
+    return os.path.join(HuoQu_AnZhuang_LuJing(), GONG_ZUO_TAI_HTML_XIANG_DUI)
 
 
 def HuoQu_HTML_LuJing():
@@ -1486,7 +1642,7 @@ def ZhuRu_HTML():
 
 def GengXin_JiaoYan_Zhi():
     """更新 product.json 中 workbench.html 的校验哈希值"""
-    LuJing_Product = os.path.join(CURSOR_AN_ZHUANG_LU_JING, "resources", "app", "product.json")
+    LuJing_Product = os.path.join(HuoQu_AnZhuang_LuJing(), "resources", "app", "product.json")
     LuJing_Html = HuoQu_HTML_LuJing()
 
     if not os.path.exists(LuJing_Product):
@@ -1519,7 +1675,7 @@ def GengXin_JiaoYan_Zhi():
 
 def HuiFu_JiaoYan_Zhi():
     """恢复 product.json 的原始校验值"""
-    LuJing_Product = os.path.join(CURSOR_AN_ZHUANG_LU_JING, "resources", "app", "product.json")
+    LuJing_Product = os.path.join(HuoQu_AnZhuang_LuJing(), "resources", "app", "product.json")
     LuJing_Product_BeiFen = LuJing_Product + BEI_FEN_HOU_ZHUI
     if os.path.exists(LuJing_Product_BeiFen):
         shutil.copy2(LuJing_Product_BeiFen, LuJing_Product)
@@ -1574,6 +1730,8 @@ def ZhuChengXu():
     print("=" * 60)
     print("  Cursor 汉化 + 用量监控工具")
     print(f"  时间: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    print(f"  安装路径: {HuoQu_AnZhuang_LuJing()}")
+    print(f"  数据路径: {HuoQu_ShuJu_LuJing()}")
     print("=" * 60)
 
     # 恢复模式
@@ -1586,7 +1744,7 @@ def ZhuChengXu():
     LuJing_Html = HuoQu_HTML_LuJing()
     if not os.path.exists(LuJing_Html):
         print(f"\n[错误] 未找到 workbench.html: {LuJing_Html}")
-        print(f"[提示] 请检查 CURSOR_AN_ZHUANG_LU_JING 是否正确: {CURSOR_AN_ZHUANG_LU_JING}")
+        print(f"[提示] 请检查 CURSOR_AN_ZHUANG_LU_JING 是否正确: {HuoQu_AnZhuang_LuJing()}")
         sys.exit(1)
 
     # 读取认证令牌

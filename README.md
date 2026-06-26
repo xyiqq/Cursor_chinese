@@ -36,18 +36,19 @@ python CursorHanHua_GongJu.py --huifu
 
 ```python
 # ★★★ 用户配置区域 ★★★
-CURSOR_AN_ZHUANG_LU_JING = r"D:\Tools\cursor"
-CURSOR_SHU_JU_LU_JING    = r"D:\Tools\cursor\user"
+# 留空则自动检测 Windows 常见安装路径和用户数据目录
+CURSOR_AN_ZHUANG_LU_JING = ""
+CURSOR_SHU_JU_LU_JING    = ""
 ```
 
-将两个路径分别替换为您的 Cursor 实际安装路径和用户数据目录（存放认证令牌的目录）。
+如需手动指定，将路径分别替换为您的 Cursor 实际安装路径和用户数据目录（存放认证令牌的目录）。
 
 同样，打开 `QiDong_Cursor_ZhongWen.bat`，修改顶部的配置变量：
 
 ```bat
-set "CURSOR_EXE=D:\Tools\cursor\Cursor.exe"
-set "CURSOR_USER_DIR=D:\Tools\cursor\user"
-set "HANHUA_SCRIPT=e:\OPENCLAW\CursorHanHua_GongJu.py"
+set "CURSOR_EXE=%LOCALAPPDATA%\Programs\cursor\Cursor.exe"
+set "CURSOR_USER_DIR=%APPDATA%\Cursor"
+set "HANHUA_SCRIPT=%~dp0CursorHanHua_GongJu.py"
 ```
 
 ## 工作原理
@@ -73,13 +74,11 @@ Python 脚本
 
 3. **翻译字典**：使用 `Map` 数据结构存储英文→中文的映射关系（500+ 条），查找效率为 O(1)；同时支持正则模式匹配，用于翻译带动态数字的文本（如"3 requests remaining"）。
 
-4. **用量显示**：脚本在 Cursor 设置页面的用户邮箱下方自动插入用量信息卡片，包含：
-   - 总用量进度条（已用 / 总限额，颜色随使用率变化）
-   - 高级模型（gpt-4 类）用量进度条
-   - 计费周期重置日期
-   - 今天的日期
-   - 距重置日期的倒计时（≤3 天时变黄色预警）
-   - 点击卡片可立即刷新用量数据，每 60 秒自动刷新一次
+4. **用量显示**：脚本在 Cursor 窗口底部状态栏右侧显示紧凑用量信息，包含：
+   - 总用量（已用 / 总限额，颜色随使用率变化）
+   - 高级模型（gpt-4 类）用量
+   - 重置倒计时（≤7 天时显示，≤3 天时黄色预警）
+   - 鼠标悬停可查看完整详情，点击可立即刷新，每 60 秒自动刷新一次
 
 5. **认证方式**：脚本自动从 `state.vscdb`（Cursor 本地 SQLite 数据库）读取 `cursorAuth/accessToken`，无需手动配置 API Key。令牌以 Base64 编码嵌入 JS 文件，在浏览器端解码后用于 API 请求。
 
