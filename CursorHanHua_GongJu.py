@@ -1311,7 +1311,7 @@ def ShengCheng_JS_DaiMa(YongLiang_ShuJu, YuanShi_LingPai=""):
                 if (TiaoGuo_BiaoQian.has(node.tagName)) continue;
                 if (node.classList && (node.classList.contains('monaco-editor') || node.classList.contains('overflow-guard') || node.classList.contains('view-lines') || node.classList.contains('editor-scrollable'))) continue;
                 if (node.getAttribute('contenteditable') === 'true') continue;
-                if (node.id === 'cursor-yongliang-chat' || node.id === 'cursor-yongliang-bar' || node.id === 'cursor-yongliang-settings' || node.id === 'cursor-yongliang-float') continue;
+                if (node.id === 'cursor-yongliang-chat' || node.id === 'cursor-yongliang-settings') continue;
                 FanYi_ShuXing(node);
                 var children = node.childNodes;
                 for (var i = children.length - 1; i >= 0; i--) { stack.push(children[i]); }
@@ -1425,15 +1425,12 @@ def ShengCheng_JS_DaiMa(YongLiang_ShuJu, YuanShi_LingPai=""):
             var neo = ids[i] === 'cursor-yongliang-settings' ? ChuangJian_YongLiang_KaPian() : ChuangJian_YongLiang_HengTiao();
             if (neo) old.parentElement.replaceChild(neo, old);
         }
+        _YiChu_XuanFu();
+    }
+
+    function _YiChu_XuanFu() {
         var fl = document.getElementById('cursor-yongliang-float');
-        if (fl && fl.parentElement) {
-            var neo2 = ChuangJian_YongLiang_HengTiao();
-            if (neo2) {
-                neo2.id = 'cursor-yongliang-float';
-                neo2.style.cssText += 'position:fixed;bottom:34px;left:50%;transform:translateX(-50%);z-index:100000;padding:4px 12px;border-radius:8px;background:rgba(24,24,24,0.95);border:1px solid rgba(255,255,255,0.1);box-shadow:0 2px 12px rgba(0,0,0,0.35);';
-                fl.parentElement.replaceChild(neo2, fl);
-            }
-        }
+        if (fl && fl.parentElement) fl.parentElement.removeChild(fl);
     }
 
     var _ZhengZaiShuaXin = false;
@@ -1444,7 +1441,7 @@ def ShengCheng_JS_DaiMa(YongLiang_ShuJu, YuanShi_LingPai=""):
         _ZhengZaiShuaXin = true;
 
         if (ShiDianJi) {
-            ['cursor-yongliang-chat', 'cursor-yongliang-settings', 'cursor-yongliang-float'].forEach(function(id) {
+            ['cursor-yongliang-chat', 'cursor-yongliang-settings'].forEach(function(id) {
                 var card = document.getElementById(id);
                 if (card) card.style.opacity = '0.5';
             });
@@ -1532,8 +1529,8 @@ def ShengCheng_JS_DaiMa(YongLiang_ShuJu, YuanShi_LingPai=""):
 
     function _TianJia_XinXiKuai(rongQi, biaoQian, zhi, yanSe) {
         var kuai = _ce('span', 'display:inline-flex;align-items:center;gap:4px;margin-right:10px;white-space:nowrap;');
-        kuai.appendChild(_ce('span', 'opacity:0.55;font-size:11px;', biaoQian));
-        kuai.appendChild(_ce('span', 'color:' + (yanSe || 'rgba(228,228,228,0.9)') + ';font-weight:600;font-size:11px;', zhi));
+        kuai.appendChild(_ce('span', 'color:#000000;font-size:11px;font-weight:500;', biaoQian));
+        kuai.appendChild(_ce('span', 'color:' + (yanSe || '#000000') + ';font-weight:600;font-size:11px;', zhi));
         rongQi.appendChild(kuai);
         return kuai;
     }
@@ -1541,15 +1538,8 @@ def ShengCheng_JS_DaiMa(YongLiang_ShuJu, YuanShi_LingPai=""):
     function ChuangJian_YongLiang_HengTiao() {
         if (!YONG_LIANG || !YONG_LIANG.youXiao) return null;
         var ys = _YongLiang_YanSe();
-        var daoJiShi = _JiSuan_DaoJiShi();
-        var chaTian = 0;
-        if (YONG_LIANG.jiFeiJieShu) {
-            var jinTian = new Date();
-            var jinTianStr = jinTian.getFullYear() + '-' + ('0' + (jinTian.getMonth() + 1)).slice(-2) + '-' + ('0' + jinTian.getDate()).slice(-2);
-            chaTian = Math.ceil((new Date(YONG_LIANG.jiFeiJieShu + 'T00:00:00').getTime() - new Date(jinTianStr + 'T00:00:00').getTime()) / 86400000);
-        }
 
-        var W = _ce('div', 'display:inline-flex;align-items:center;flex-wrap:nowrap;gap:2px;margin:0 6px;padding:0 2px;font-size:11px;line-height:20px;color:rgba(228,228,228,0.8);cursor:pointer;user-select:none;transition:opacity 0.3s;white-space:nowrap;max-width:none;overflow:visible;');
+        var W = _ce('div', 'display:inline-flex;align-items:center;flex-wrap:nowrap;gap:2px;margin:0 6px;padding:0 2px;font-size:11px;line-height:20px;color:#000000;cursor:pointer;user-select:none;transition:opacity 0.3s;white-space:nowrap;max-width:none;overflow:visible;');
         W.id = 'cursor-yongliang-chat';
         W.setAttribute('aria-label', '\\u7528\\u91cf\\u76d1\\u63a7');
 
@@ -1563,13 +1553,7 @@ def ShengCheng_JS_DaiMa(YongLiang_ShuJu, YuanShi_LingPai=""):
             _TianJia_XinXiKuai(W, 'Auto', YONG_LIANG.autoBaiFen + '%', '#a78bfa');
         }
         if (YONG_LIANG.jiFeiJieShu) {
-            _TianJia_XinXiKuai(W, '\\u91cd\\u7f6e', YONG_LIANG.jiFeiJieShu, '#c4b5fd');
-        }
-        if (daoJiShi) {
-            _TianJia_XinXiKuai(W, '\\u5012\\u8ba1\\u65f6', daoJiShi, chaTian <= 3 ? '#fbbf24' : '#94a3b8');
-        }
-        if (YONG_LIANG.jiHua) {
-            _TianJia_XinXiKuai(W, '\\u8ba1\\u5212', (YONG_LIANG.jiHua || '').toUpperCase(), '#94a3b8');
+            _TianJia_XinXiKuai(W, '\\u91cd\\u7f6e', YONG_LIANG.jiFeiJieShu, '#7c3aed');
         }
 
         W.addEventListener('click', function(e) { e.preventDefault(); e.stopPropagation(); ShiShi_ShuaXin(true); });
@@ -1691,19 +1675,10 @@ def ShengCheng_JS_DaiMa(YongLiang_ShuJu, YuanShi_LingPai=""):
         return false;
     }
 
-    function _ChaRu_XuanFu() {
-        if (document.getElementById('cursor-yongliang-float') || document.getElementById('cursor-yongliang-chat')) return true;
-        var tiao = ChuangJian_YongLiang_HengTiao();
-        if (!tiao) return false;
-        tiao.id = 'cursor-yongliang-float';
-        tiao.style.cssText += 'position:fixed;bottom:34px;left:50%;transform:translateX(-50%);z-index:100000;padding:4px 12px;border-radius:8px;background:rgba(24,24,24,0.95);border:1px solid rgba(255,255,255,0.1);box-shadow:0 2px 12px rgba(0,0,0,0.35);';
-        document.body.appendChild(tiao);
-        return true;
-    }
-
     function ChaRu_YongLiang_XianShi() {
         if (!YONG_LIANG || !YONG_LIANG.youXiao) return;
-        if (!_ChaRu_DuiHuaLan()) _ChaRu_XuanFu();
+        _YiChu_XuanFu();
+        _ChaRu_DuiHuaLan();
         _ChaRu_SheZhiYe();
     }
 
@@ -1738,7 +1713,7 @@ def ShengCheng_JS_DaiMa(YongLiang_ShuJu, YuanShi_LingPai=""):
 
         if (_XHJ_LP) {
             setInterval(function() {
-                if (document.getElementById('cursor-yongliang-chat') || document.getElementById('cursor-yongliang-settings') || document.getElementById('cursor-yongliang-float')) {
+                if (document.getElementById('cursor-yongliang-chat') || document.getElementById('cursor-yongliang-settings')) {
                     ShiShi_ShuaXin(false);
                 }
             }, 60000);
