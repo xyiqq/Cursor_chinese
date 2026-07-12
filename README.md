@@ -2,33 +2,61 @@
 
 ## 工具简介
 
-本工具用于将 Cursor IDE 的 Settings 页面（设置页面）从英文翻译为中文，同时在设置页面的用户信息区域下方实时显示 API 用量数据（总用量、高级模型用量、重置日期、倒计时等）。无论 Cursor 版本如何更新，只需重新运行脚本即可恢复汉化与用量显示。
+本工具用于将 Cursor IDE 的 Settings 页面（设置页面）从英文翻译为中文，同时在设置页面的用户信息区域下方实时显示 API 用量数据（总用量、高级模型用量、重置日期、倒计时等）。
+
+**Cursor 版本更新后汉化会失效**：更新会覆盖 `workbench.html`。本工具支持启动时后台静默检查并自动重新注入；推荐执行一次 `--an-zhuang`。
 
 ## 文件清单
 
 | 文件 | 说明 |
 |------|------|
 | `CursorHanHua_GongJu.py` | Python 汉化注入主程序（核心脚本） |
-| `QiDong_Cursor_ZhongWen.bat` | 一键启动批处理文件（自动注入 + 启动 Cursor） |
-| `说明.md` | 本说明文档 |
+| `QiDong_Cursor_ZhongWen.vbs` | 无窗口启动器（后台检查后启动 Cursor） |
+| `QiDong_Cursor_ZhongWen.bat` | 调用上面的 VBS（兼容双击） |
+| `README.md` | 本说明文档 |
 
 ## 使用方法
 
-### 方法一：一键启动（推荐）
+### 方法一：安装「启动时后台检查」（推荐）
 
-双击 `QiDong_Cursor_ZhongWen.bat`，它会自动检测汉化状态并注入，然后启动 Cursor。
+```bash
+python CursorHanHua_GongJu.py --an-zhuang
+```
 
-### 方法二：手动注入
+会完成：
+1. 立即检测并注入/修复当前汉化
+2. 清理旧版「每 5 分钟」计划任务
+3. 在桌面创建「Cursor中文」快捷方式（无黑框、无弹窗）
+
+之后请用桌面 **「Cursor中文」** 启动：每次启动会先在后台静默检查汉化，再打开 Cursor。
+
+卸载：
+
+```bash
+python CursorHanHua_GongJu.py --xie-zai
+```
+
+### 方法二：直接无窗口启动
+
+双击 `QiDong_Cursor_ZhongWen.vbs`（或 bat），效果同上。
+
+### 方法三：手动注入 / 恢复
 
 ```bash
 # 注入汉化 + 用量显示
 python CursorHanHua_GongJu.py
 
+# 仅后台静默自愈（不启动 Cursor）
+pythonw CursorHanHua_GongJu.py --xiu-fu
+
+# 后台静默自愈并启动 Cursor
+pythonw CursorHanHua_GongJu.py --qi-dong
+
 # 恢复原始英文
 python CursorHanHua_GongJu.py --huifu
 ```
 
-注入后需要 **重启 Cursor** 才能看到效果。
+手动注入后需要 **重启 Cursor** 才能看到效果。
 
 ## 修改安装路径
 
@@ -74,10 +102,10 @@ Python 脚本
 
 3. **翻译字典**：使用 `Map` 数据结构存储英文→中文的映射关系（500+ 条），查找效率为 O(1)；同时支持正则模式匹配，用于翻译带动态数字的文本（如"3 requests remaining"）。
 
-4. **用量显示**：用量条插入聊天输入框下方状态栏（`Local` 标签右侧），常驻显示：
-   - 总用量、剩余、占比、API%、Auto%、重置日期
+4. **用量显示**：用量条插入 **聊天输入框上方**（嵌入布局，不遮挡输入），常驻显示：
+   - 合计、剩余、Auto%、API%、重置日期
    - 数据同步自官网 `cursor.com/api/usage-summary`（与官网一致）
-   - 标签文字为黑色，数值用彩色区分；点击可刷新，每 60 秒自动刷新
+   - 点击可刷新，每 60 秒自动刷新
 
 5. **认证方式**：脚本自动从 `state.vscdb`（Cursor 本地 SQLite 数据库）读取 `cursorAuth/accessToken`，无需手动配置 API Key。令牌以 Base64 编码嵌入 JS 文件，在浏览器端解码后用于 API 请求。
 
@@ -87,11 +115,11 @@ Python 脚本
    - 自动跳过编辑器区域（`.monaco-editor` 等），不影响代码编辑
    - 跳过 `<textarea>`、`<input>`、`<code>`、`<pre>` 等不应翻译的元素
 
-7. **版本兼容**：Cursor 更新时会覆盖 `workbench.html`，汉化注入会被清除。使用 `QiDong_Cursor_ZhongWen.bat` 启动时会自动检测并重新注入，因此无论版本如何更新都能保持汉化。
+7. **版本兼容 / 启动自愈**：Cursor 更新时会覆盖 `workbench.html` 并删除 `cursor_hanhua.js`。脚本会记录已注入的 Cursor `version/commit`；用「Cursor中文」启动时会在后台静默检查，发现版本变化或注入丢失则自动重注。无弹窗、无定时任务。
 
-8. **幂等性**：脚本可重复运行，不会重复注入。如果检测到已注入，只会更新翻译 JS 文件内容（以便字典更新和用量数据刷新生效）。
+8. **幂等性**：脚本可重复运行，不会重复注入。注入完好时启动检查几乎瞬时完成。
 
-9. **校验值同步**：Cursor 通过 `product.json` 中的 `checksums` 字段校验核心文件的 SHA256 哈希值。修改 `workbench.html` 后如不更新校验值，Cursor 启动时会提示 "Your Cursor installation appears to be corrupt. Please reinstall."。脚本会自动重新计算并更新校验值，避免此提示。
+9. **校验值同步**：Cursor 通过 `product.json` 中的 `checksums` 字段校验核心文件的 SHA256 哈希值。修改 `workbench.html` 后如不更新校验值，Cursor 启动时会提示 "Your Cursor installation appears to be corrupt. Please reinstall."。脚本会自动重新计算并更新校验值，避免此提示。更新后会刷新 `.bak`，避免误用旧版备份。
 
 ### 安全性
 
@@ -130,7 +158,7 @@ Python 脚本
 | 用量卡片不显示 | 检查 `CURSOR_SHU_JU_LU_JING` 路径是否正确，确认已登录 Cursor |
 | 用量数据获取失败 | 检查网络连接，或令牌已过期（重新登录 Cursor 后重新运行脚本） |
 | Cursor 启动异常 | 运行 `python CursorHanHua_GongJu.py --huifu` 恢复原始文件 |
-| 更新后汉化消失 | 重新运行 `python CursorHanHua_GongJu.py` 或使用 bat 启动 |
+| 更新后汉化消失 | 用桌面「Cursor中文」重新启动一次；或运行 `python CursorHanHua_GongJu.py --an-zhuang` |
 
 **关于 "installation appears to be corrupt" 的原因**：Cursor（基于 VS Code/Electron）在 product.json 的 checksums 字段中记录了核心文件的 SHA256 哈希值。我们修改了 workbench.html 注入翻译脚本后，文件哈希变了，但 product.json 中记录的仍是原始哈希值，所以 Cursor 启动时检测到不一致就报此错误。
 

@@ -7,8 +7,12 @@ Cursor 汉化 + 用量监控工具
   3. 在 Cursor 设置页面用户信息区域下方显示实时用量情况
 
 用法：
-  python CursorHanHua_GongJu.py           汉化 + 用量显示
-  python CursorHanHua_GongJu.py --huifu   恢复原始文件
+  python CursorHanHua_GongJu.py              汉化 + 用量显示
+  python CursorHanHua_GongJu.py --qi-dong    后台静默检查后启动 Cursor（无窗口）
+  python CursorHanHua_GongJu.py --xiu-fu     仅后台静默自愈（不启动）
+  python CursorHanHua_GongJu.py --an-zhuang  安装「启动时检查」桌面快捷方式
+  python CursorHanHua_GongJu.py --xie-zai    卸载启动快捷方式与旧计划任务
+  python CursorHanHua_GongJu.py --huifu      恢复原始文件
 """
 
 import os  # 文件路径操作
@@ -19,6 +23,7 @@ import hashlib  # 哈希计算
 import base64  # Base64 编码
 import json  # JSON 读写
 import sqlite3  # SQLite 数据库
+import subprocess  # 计划任务 / 快捷方式
 import urllib.request  # HTTP 请求
 import urllib.error  # HTTP 错误处理
 
@@ -38,6 +43,11 @@ GONG_ZUO_TAI_HTML_MING = "workbench.html"  # workbench HTML 文件名
 HAN_HUA_JS_MING = "cursor_hanhua.js"  # 翻译脚本文件名
 ZHU_RU_BIAO_JI = "<!-- CURSOR_HANHUA_INJECTION -->"  # 注入标记
 BEI_FEN_HOU_ZHUI = ".bak"  # 备份文件后缀
+ZHUANG_TAI_MU_LU_MING = "Cursor_chinese_hanhua"  # 本工具状态目录名（位于 APPDATA）
+ZHUANG_TAI_WEN_JIAN_MING = "injected_state.json"  # 记录已注入的 Cursor 版本
+JI_HUA_REN_WU_MING = "CursorChineseAutoHeal"  # 旧版计划任务名（卸载时清理）
+ZHUO_MIAN_KUAI_JIE_MING = "Cursor中文.lnk"  # 桌面快捷方式名
+QI_DONG_VBS_MING = "QiDong_Cursor_ZhongWen.vbs"  # 无窗口启动器
 
 # API 端点
 API_YONG_LIANG = "https://api2.cursor.sh/auth/usage"  # 高级请求用量
@@ -1313,7 +1323,7 @@ def ShengCheng_JS_DaiMa(YongLiang_ShuJu, YuanShi_LingPai=""):
                 if (TiaoGuo_BiaoQian.has(node.tagName)) continue;
                 if (node.classList && (node.classList.contains('monaco-editor') || node.classList.contains('overflow-guard') || node.classList.contains('view-lines') || node.classList.contains('editor-scrollable'))) continue;
                 if (node.getAttribute('contenteditable') === 'true') continue;
-                if (node.id === 'cursor-yongliang-chat' || node.id === 'cursor-yongliang-settings') continue;
+                if (node.id === 'cursor-yongliang-chat') continue;
                 FanYi_ShuXing(node);
                 var children = node.childNodes;
                 for (var i = children.length - 1; i >= 0; i--) { stack.push(children[i]); }
@@ -1408,32 +1418,24 @@ def ShengCheng_JS_DaiMa(YongLiang_ShuJu, YuanShi_LingPai=""):
         YONG_LIANG.gengXinShiJian = new Date().toLocaleString();
     }
 
-    function _JiSuan_DaoJiShi() {
-        if (!YONG_LIANG.jiFeiJieShu) return '';
-        var jinTian = new Date();
-        var jinTianStr = jinTian.getFullYear() + '-' + ('0' + (jinTian.getMonth() + 1)).slice(-2) + '-' + ('0' + jinTian.getDate()).slice(-2);
-        var chongZhiRi = new Date(YONG_LIANG.jiFeiJieShu + 'T00:00:00');
-        var jinTianLing = new Date(jinTianStr + 'T00:00:00');
-        var chaTian = Math.ceil((chongZhiRi.getTime() - jinTianLing.getTime()) / 86400000);
-        if (chaTian > 0) return chaTian + '\\u5929\\u540e\\u91cd\\u7f6e';
-        if (chaTian === 0) return '\\u4eca\\u65e5\\u91cd\\u7f6e';
-        return '\\u5df2\\u8fc7\\u91cd\\u7f6e\\u65e5';
-    }
-
     function GengXin_KaPian() {
-        var ids = ['cursor-yongliang-chat', 'cursor-yongliang-settings'];
-        for (var i = 0; i < ids.length; i++) {
-            var old = document.getElementById(ids[i]);
-            if (!old || !old.parentElement) continue;
-            var neo = ids[i] === 'cursor-yongliang-settings' ? ChuangJian_YongLiang_KaPian() : ChuangJian_YongLiang_HengTiao();
+        var old = document.getElementById('cursor-yongliang-chat');
+        if (old && old.parentElement) {
+            var neo = ChuangJian_YongLiang_HengTiao();
             if (neo) old.parentElement.replaceChild(neo, old);
         }
         _YiChu_XuanFu();
+        _YiChu_SheZhiKaPian();
     }
 
     function _YiChu_XuanFu() {
         var fl = document.getElementById('cursor-yongliang-float');
         if (fl && fl.parentElement) fl.parentElement.removeChild(fl);
+    }
+
+    function _YiChu_SheZhiKaPian() {
+        var ka = document.getElementById('cursor-yongliang-settings');
+        if (ka && ka.parentElement) ka.parentElement.removeChild(ka);
     }
 
     var _ZhengZaiShuaXin = false;
@@ -1444,10 +1446,8 @@ def ShengCheng_JS_DaiMa(YongLiang_ShuJu, YuanShi_LingPai=""):
         _ZhengZaiShuaXin = true;
 
         if (ShiDianJi) {
-            ['cursor-yongliang-chat', 'cursor-yongliang-settings'].forEach(function(id) {
-                var card = document.getElementById(id);
-                if (card) card.style.opacity = '0.5';
-            });
+            var card = document.getElementById('cursor-yongliang-chat');
+            if (card) card.style.opacity = '0.5';
         }
 
         var pending = 0;
@@ -1513,13 +1513,6 @@ def ShengCheng_JS_DaiMa(YongLiang_ShuJu, YuanShi_LingPai=""):
         return e;
     }
 
-    function _bar(pct, color, h) {
-        var outer = _ce('div', 'width:100%;height:' + (h||4) + 'px;background:rgba(255,255,255,0.08);border-radius:99px;overflow:hidden;');
-        var inner = _ce('div', 'width:' + Math.min(pct, 100).toFixed(1) + '%;height:100%;background:' + color + ';border-radius:99px;transition:width 0.5s;');
-        outer.appendChild(inner);
-        return outer;
-    }
-
     function _GeShi_BaiFen(v) {
         var n = Number(v);
         if (!isFinite(n)) return '0%';
@@ -1540,9 +1533,9 @@ def ShengCheng_JS_DaiMa(YongLiang_ShuJu, YuanShi_LingPai=""):
     }
 
     function _TianJia_XinXiKuai(rongQi, biaoQian, zhi, yanSe) {
-        var kuai = _ce('span', 'display:inline-flex;align-items:center;gap:4px;margin-right:10px;white-space:nowrap;');
-        kuai.appendChild(_ce('span', 'color:#000000;font-size:11px;font-weight:500;', biaoQian));
-        kuai.appendChild(_ce('span', 'color:' + (yanSe || '#000000') + ';font-weight:600;font-size:11px;', zhi));
+        var kuai = _ce('span', 'display:inline-flex;align-items:center;gap:4px;margin-right:12px;white-space:nowrap;');
+        kuai.appendChild(_ce('span', 'color:var(--vscode-descriptionForeground, #6b7280);font-size:11px;font-weight:500;', biaoQian));
+        kuai.appendChild(_ce('span', 'color:' + (yanSe || 'var(--vscode-foreground, #e5e5e5)') + ';font-weight:600;font-size:11px;', zhi));
         rongQi.appendChild(kuai);
         return kuai;
     }
@@ -1551,9 +1544,20 @@ def ShengCheng_JS_DaiMa(YongLiang_ShuJu, YuanShi_LingPai=""):
         if (!YONG_LIANG || !YONG_LIANG.youXiao) return null;
         var ys = _YongLiang_YanSe();
 
-        var W = _ce('div', 'display:inline-flex;align-items:center;flex-wrap:nowrap;gap:2px;margin:0 6px;padding:0 2px;font-size:11px;line-height:20px;color:#000000;cursor:pointer;user-select:none;transition:opacity 0.3s;white-space:nowrap;max-width:none;overflow:visible;');
+        var W = _ce('div',
+            'display:flex;align-items:center;flex-wrap:wrap;gap:2px 4px;' +
+            'width:100%;box-sizing:border-box;' +
+            'margin:0 0 6px 0;padding:6px 10px;' +
+            'border-radius:8px;' +
+            'background:var(--vscode-editorWidget-background, rgba(128,128,128,0.08));' +
+            'border:1px solid var(--vscode-widget-border, rgba(128,128,128,0.18));' +
+            'font-size:11px;line-height:18px;' +
+            'color:var(--vscode-foreground, #e5e5e5);' +
+            'cursor:pointer;user-select:none;transition:opacity 0.3s;'
+        );
         W.id = 'cursor-yongliang-chat';
         W.setAttribute('aria-label', '\\u7528\\u91cf\\u76d1\\u63a7');
+        W.setAttribute('title', '\\u70b9\\u51fb\\u5237\\u65b0\\u7528\\u91cf');
 
         _TianJia_XinXiKuai(W, '\\u5408\\u8ba1', _GeShi_BaiFen(YONG_LIANG.zongBaiFen), ys.zC);
         _TianJia_XinXiKuai(W, '\\u5269\\u4f59', _GeShi_BaiFen(YONG_LIANG.shengYuBaiFen), '#4ade80');
@@ -1571,116 +1575,66 @@ def ShengCheng_JS_DaiMa(YongLiang_ShuJu, YuanShi_LingPai=""):
         return W;
     }
 
-    function ChuangJian_YongLiang_KaPian() {
-        if (!YONG_LIANG || !YONG_LIANG.youXiao) return null;
-        var ys = _YongLiang_YanSe();
+    function _ShiKeJian(el) {
+        if (!el || !(el instanceof Element)) return false;
+        if (el.offsetParent === null && getComputedStyle(el).position !== 'fixed') return false;
+        var r = el.getBoundingClientRect();
+        return r.width >= 60 && r.height >= 8;
+    }
 
-        var W = _ce('div', 'margin:12px 0 16px 0;padding:12px 14px;border-radius:10px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);cursor:pointer;user-select:none;transition:opacity 0.3s;');
-        W.id = 'cursor-yongliang-settings';
-
-        var title = _ce('div', 'font-size:13px;font-weight:600;margin-bottom:8px;color:rgba(228,228,228,0.9);', '\\u7528\\u91cf\\u76d1\\u63a7');
-        W.appendChild(title);
-
-        var r1 = _ce('div', 'margin-bottom:8px;');
-        var t1 = _ce('div', 'font-size:11px;color:rgba(228,228,228,0.55);margin-bottom:4px;');
-        t1.appendChild(document.createTextNode('\\u5408\\u8ba1 '));
-        t1.appendChild(_ce('span', 'color:' + ys.zC + ';font-weight:600;', _GeShi_BaiFen(YONG_LIANG.zongBaiFen)));
-        t1.appendChild(document.createTextNode('  \\u5269\\u4f59 ' + _GeShi_BaiFen(YONG_LIANG.shengYuBaiFen)));
-        r1.appendChild(t1);
-        r1.appendChild(_bar(ys.zP, ys.zC, 4));
-        W.appendChild(r1);
-
-        var r2 = _ce('div', 'font-size:11px;color:rgba(228,228,228,0.55);margin-bottom:6px;');
-        r2.appendChild(document.createTextNode('Auto ' + _GeShi_BaiFen(YONG_LIANG.autoBaiFen) + '  |  API ' + _GeShi_BaiFen(YONG_LIANG.apiBaiFen) + '  |  \\u8ba1\\u5212 ' + (YONG_LIANG.jiHua || '').toUpperCase()));
-        W.appendChild(r2);
-
-        if (YONG_LIANG.gaoJiXian > 0) {
-            var r3 = _ce('div', 'margin-bottom:8px;');
-            var t3 = _ce('div', 'font-size:11px;color:rgba(228,228,228,0.55);margin-bottom:4px;');
-            t3.appendChild(document.createTextNode('\\u9ad8\\u7ea7\\u6a21\\u578b ' + YONG_LIANG.gaoJiYong + ' / ' + YONG_LIANG.gaoJiXian));
-            r3.appendChild(t3);
-            r3.appendChild(_bar(ys.gP, ys.gC, 4));
-            W.appendChild(r3);
+    function _ZhaoDao_ShuRuKuang() {
+        var xuanZeQi = [
+            '.ai-input-full-input-box.full-input-box',
+            '.full-input-box',
+            '.composer-input-container',
+            '.composer-input-wrapper',
+            '.ui-prompt-input',
+            '.aislash-editor-input'
+        ];
+        var houXuan = [];
+        for (var i = 0; i < xuanZeQi.length; i++) {
+            var nodes = document.querySelectorAll(xuanZeQi[i]);
+            for (var j = 0; j < nodes.length; j++) {
+                var el = nodes[j];
+                if (!_ShiKeJian(el)) continue;
+                // 跳过只读预览输入
+                if (el.classList && el.classList.contains('aislash-editor-input-readonly')) continue;
+                var box = el.closest('.ai-input-full-input-box, .full-input-box, .composer-input-container, .composer-input-wrapper, .ui-prompt-input') || el;
+                if (!_ShiKeJian(box)) box = el;
+                var r = box.getBoundingClientRect();
+                houXuan.push({ el: box, top: r.top, bottom: r.bottom, area: r.width * r.height });
+            }
         }
-
-        if (YONG_LIANG.jiFeiJieShu) {
-            var r4 = _ce('div', 'font-size:11px;color:rgba(228,228,228,0.55);margin-bottom:4px;');
-            r4.appendChild(document.createTextNode('\\u91cd\\u7f6e\\u65e5\\u671f: ' + YONG_LIANG.jiFeiJieShu + '  |  \\u5012\\u8ba1\\u65f6: ' + _JiSuan_DaoJiShi()));
-            W.appendChild(r4);
-        }
-
-        W.addEventListener('click', function(e) { e.stopPropagation(); ShiShi_ShuaXin(true); });
-        return W;
+        if (!houXuan.length) return null;
+        // 优先选靠近窗口底部的输入框（聊天输入通常在底部）
+        houXuan.sort(function(a, b) {
+            if (Math.abs(b.bottom - a.bottom) > 20) return b.bottom - a.bottom;
+            return b.area - a.area;
+        });
+        return houXuan[0].el;
     }
 
     function _ChaRu_DuiHuaLan() {
-        if (document.getElementById('cursor-yongliang-chat')) return true;
+        var shuRu = _ZhaoDao_ShuRuKuang();
+        var existing = document.getElementById('cursor-yongliang-chat');
+
+        if (!shuRu) return !!existing;
+
+        // 已正确插在输入框正上方则保留
+        if (existing && existing.parentElement && existing.nextElementSibling === shuRu) {
+            return true;
+        }
+
         var tiao = ChuangJian_YongLiang_HengTiao();
         if (!tiao) return false;
 
-        var walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, null, false);
-        while (walker.nextNode()) {
-            var val = (walker.currentNode.textContent || '').trim();
-            if (val !== 'Local') continue;
-            var localEl = walker.currentNode.parentElement;
-            if (!localEl || localEl.closest('.monaco-editor')) continue;
-            var hang = localEl.parentElement;
-            if (hang) {
-                hang.insertAdjacentElement('afterend', tiao);
-                console.log('[HanHua] Usage bar inserted after Local');
-                return true;
-            }
+        if (existing && existing.parentElement) {
+            existing.parentElement.removeChild(existing);
         }
 
-        var bars = document.querySelectorAll('.monaco-workbench .part.statusbar');
-        for (var b = 0; b < bars.length; b++) {
-            var statusBar = bars[b];
-            if (statusBar.offsetParent === null) continue;
-            var rect = statusBar.getBoundingClientRect();
-            if (rect.height <= 0) continue;
-            var container = statusBar.querySelector('.items-container') || statusBar;
-            var leftItems = container.querySelector('.left-items');
-            if (leftItems) {
-                leftItems.appendChild(tiao);
-                console.log('[HanHua] Usage bar inserted into statusbar left-items');
-                return true;
-            }
-            var firstLeft = container.querySelector('.statusbar-item.left');
-            if (firstLeft && firstLeft.parentElement) {
-                firstLeft.parentElement.appendChild(tiao);
-                return true;
-            }
-        }
-        return false;
-    }
-
-    function _ChaRu_SheZhiYe() {
-        if (document.getElementById('cursor-yongliang-settings')) return true;
-        var kaPian = ChuangJian_YongLiang_KaPian();
-        if (!kaPian) return false;
-
-        var biaoJi = /Plan\\s*&\\s*Usage|计划与用量|Manage Subscription|管理订阅/;
-        var walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, null, false);
-        var muBiao = null;
-        while (walker.nextNode()) {
-            var val = (walker.currentNode.textContent || '').trim();
-            if (!biaoJi.test(val)) continue;
-            var pEl = walker.currentNode.parentElement;
-            if (!pEl || pEl.closest('.monaco-editor')) continue;
-            var quYu = pEl;
-            for (var up = 0; up < 6; up++) {
-                if (!quYu.parentElement) break;
-                quYu = quYu.parentElement;
-                if (quYu.classList && (quYu.classList.contains('cursor-settings-layout-main') || quYu.classList.contains('cursor-settings-tabs-content') || quYu.querySelector('.cursor-settings-cell'))) {
-                    muBiao = quYu;
-                    break;
-                }
-            }
-            if (muBiao) break;
-        }
-
-        if (muBiao) {
-            muBiao.insertBefore(kaPian, muBiao.firstChild);
+        if (shuRu.parentElement) {
+            shuRu.parentElement.insertBefore(tiao, shuRu);
+            console.log('[HanHua] Usage bar inserted above input');
             return true;
         }
         return false;
@@ -1689,8 +1643,8 @@ def ShengCheng_JS_DaiMa(YongLiang_ShuJu, YuanShi_LingPai=""):
     function ChaRu_YongLiang_XianShi() {
         if (!YONG_LIANG || !YONG_LIANG.youXiao) return;
         _YiChu_XuanFu();
+        _YiChu_SheZhiKaPian();
         _ChaRu_DuiHuaLan();
-        _ChaRu_SheZhiYe();
     }
 
     // ================================================================
@@ -1724,7 +1678,7 @@ def ShengCheng_JS_DaiMa(YongLiang_ShuJu, YuanShi_LingPai=""):
 
         if (_XHJ_LP) {
             setInterval(function() {
-                if (document.getElementById('cursor-yongliang-chat') || document.getElementById('cursor-yongliang-settings')) {
+                if (document.getElementById('cursor-yongliang-chat')) {
                     ShiShi_ShuaXin(false);
                 }
             }, 60000);
@@ -1765,6 +1719,128 @@ def HuoQu_BeiFen_LuJing():
 
 
 # ============================================================
+# ★★★ 版本检测与状态持久化（应对 Cursor 更新覆盖） ★★★
+# ============================================================
+
+def HuoQu_ZhuangTai_MuLu():
+    """获取本工具在用户目录下的状态目录"""
+    LuJing = os.path.join(os.environ.get("APPDATA", os.path.expanduser("~")), ZHUANG_TAI_MU_LU_MING)
+    os.makedirs(LuJing, exist_ok=True)
+    return LuJing
+
+
+def HuoQu_ZhuangTai_WenJian():
+    """获取注入状态文件路径"""
+    return os.path.join(HuoQu_ZhuangTai_MuLu(), ZHUANG_TAI_WEN_JIAN_MING)
+
+
+def HuoQu_Cursor_BanBen():
+    """读取当前 Cursor 版本与 commit，用于判断是否刚更新过"""
+    LuJing_Product = os.path.join(HuoQu_AnZhuang_LuJing(), "resources", "app", "product.json")
+    JieGuo = {"version": "", "commit": "", "htmlMtime": 0}
+    if os.path.exists(LuJing_Product):
+        try:
+            with open(LuJing_Product, 'r', encoding='utf-8') as WenJian:
+                ShuJu = json.load(WenJian)
+            JieGuo["version"] = str(ShuJu.get("version") or "")
+            JieGuo["commit"] = str(ShuJu.get("commit") or "")
+        except Exception:
+            pass
+    LuJing_Html = HuoQu_HTML_LuJing()
+    if os.path.exists(LuJing_Html):
+        try:
+            JieGuo["htmlMtime"] = int(os.path.getmtime(LuJing_Html))
+        except Exception:
+            pass
+    return JieGuo
+
+
+def DuQu_ZhuRu_ZhuangTai():
+    """读取上次成功注入时记录的版本信息"""
+    LuJing = HuoQu_ZhuangTai_WenJian()
+    if not os.path.exists(LuJing):
+        return {}
+    try:
+        with open(LuJing, 'r', encoding='utf-8') as WenJian:
+            return json.load(WenJian)
+    except Exception:
+        return {}
+
+
+def XieRu_ZhuRu_ZhuangTai():
+    """写入当前注入成功对应的 Cursor 版本指纹"""
+    BanBen = HuoQu_Cursor_BanBen()
+    ZhuangTai = {
+        "version": BanBen.get("version", ""),
+        "commit": BanBen.get("commit", ""),
+        "htmlMtime": BanBen.get("htmlMtime", 0),
+        "installPath": HuoQu_AnZhuang_LuJing(),
+        "updatedAt": datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+    }
+    with open(HuoQu_ZhuangTai_WenJian(), 'w', encoding='utf-8') as WenJian:
+        json.dump(ZhuangTai, WenJian, ensure_ascii=False, indent=2)
+    return ZhuangTai
+
+
+def JianCha_JS_CunZai():
+    """检查翻译脚本文件是否存在"""
+    return os.path.exists(HuoQu_JS_LuJing())
+
+
+def XuYao_ChongXin_ZhuRu():
+    """
+    判断是否需要重新注入。
+    Cursor 更新后通常会：覆盖 workbench.html、删除 cursor_hanhua.js、更换 product.json。
+    """
+    if not JianCha_YiZhuRu():
+        return True, "workbench.html 中未发现汉化注入标记"
+    if not JianCha_JS_CunZai():
+        return True, "cursor_hanhua.js 缺失"
+    DangQian = HuoQu_Cursor_BanBen()
+    ShangCi = DuQu_ZhuRu_ZhuangTai()
+    if not ShangCi:
+        return True, "尚未记录注入版本（首次自愈）"
+    if ShangCi.get("version") != DangQian.get("version") or ShangCi.get("commit") != DangQian.get("commit"):
+        return True, f"检测到 Cursor 已更新: {ShangCi.get('version')} → {DangQian.get('version')}"
+    if ShangCi.get("installPath") and ShangCi.get("installPath") != HuoQu_AnZhuang_LuJing():
+        return True, "检测到 Cursor 安装路径变化"
+    return False, "汉化注入完好"
+
+
+def HuoQu_ZhuoMian_LuJing():
+    """获取桌面目录"""
+    ZhuoMian = os.path.join(os.path.expanduser("~"), "Desktop")
+    if not os.path.isdir(ZhuoMian):
+        ZhuoMian = os.path.join(os.environ.get("USERPROFILE", ""), "Desktop")
+    return ZhuoMian
+
+
+def HuoQu_PythonW():
+    """优先返回无控制台窗口的 pythonw"""
+    Python_Exe = sys.executable
+    PythonW = Python_Exe.replace("python.exe", "pythonw.exe")
+    if os.path.exists(PythonW):
+        return PythonW
+    return Python_Exe
+
+
+def QiDong_Cursor():
+    """启动 Cursor（不等待退出）"""
+    Cursor_Exe = os.path.join(HuoQu_AnZhuang_LuJing(), "Cursor.exe")
+    if not os.path.exists(Cursor_Exe):
+        raise FileNotFoundError(f"未找到 Cursor: {Cursor_Exe}")
+    YongHu_ShuJu = HuoQu_ShuJu_LuJing()
+    CaoZuoXiTong = getattr(subprocess, "CREATE_NO_WINDOW", 0) if os.name == "nt" else 0
+    subprocess.Popen(
+        [Cursor_Exe, f"--user-data-dir={YongHu_ShuJu}"],
+        cwd=os.path.dirname(Cursor_Exe),
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        creationflags=CaoZuoXiTong,
+    )
+
+
+# ============================================================
 # ★★★ 注入与恢复函数 ★★★
 # ============================================================
 
@@ -1778,15 +1854,30 @@ def JianCha_YiZhuRu():
     return ZHU_RU_BIAO_JI in NeiRong
 
 
-def ChuangJian_BeiFen():
-    """创建 workbench.html 的备份"""
+def ChuangJian_BeiFen(QiangZhi=False):
+    """
+    创建 workbench.html / product.json 备份。
+    Cursor 更新后旧备份会过期，因此：
+    - 当前 HTML 未注入时，始终用当前干净文件覆盖备份
+    - 版本变化或强制时同样刷新备份
+    """
     LuJing_Html = HuoQu_HTML_LuJing()
     LuJing_BeiFen = HuoQu_BeiFen_LuJing()
-    if not os.path.exists(LuJing_BeiFen):
+    XuYao_ShuaXin = QiangZhi or (not JianCha_YiZhuRu()) or (not os.path.exists(LuJing_BeiFen))
+
+    if XuYao_ShuaXin:
         shutil.copy2(LuJing_Html, LuJing_BeiFen)
-        print(f"[备份] 已创建备份: {LuJing_BeiFen}")
+        print(f"[备份] 已刷新 HTML 备份: {LuJing_BeiFen}")
     else:
-        print(f"[备份] 备份已存在: {LuJing_BeiFen}")
+        print(f"[备份] HTML 备份已存在: {LuJing_BeiFen}")
+
+    LuJing_Product = os.path.join(HuoQu_AnZhuang_LuJing(), "resources", "app", "product.json")
+    LuJing_Product_BeiFen = LuJing_Product + BEI_FEN_HOU_ZHUI
+    if os.path.exists(LuJing_Product) and (QiangZhi or XuYao_ShuaXin or not os.path.exists(LuJing_Product_BeiFen)):
+        # 仅在尚未注入时备份 product.json，避免把已改校验值当成“原始”
+        if not JianCha_YiZhuRu() or not os.path.exists(LuJing_Product_BeiFen) or QiangZhi:
+            shutil.copy2(LuJing_Product, LuJing_Product_BeiFen)
+            print(f"[备份] 已刷新 product.json 备份: {LuJing_Product_BeiFen}")
 
 
 def XieRu_FanYi_JS(YongLiang_ShuJu, LingPai=""):
@@ -1799,17 +1890,43 @@ def XieRu_FanYi_JS(YongLiang_ShuJu, LingPai=""):
 
 
 def ZhuRu_HTML():
-    """在 workbench.html 中注入脚本引用"""
+    """在 workbench.html 中注入脚本引用（幂等：已注入则跳过）"""
     LuJing_Html = HuoQu_HTML_LuJing()
     with open(LuJing_Html, 'r', encoding='utf-8') as WenJian:
         NeiRong = WenJian.read()
 
+    if ZHU_RU_BIAO_JI in NeiRong and HAN_HUA_JS_MING in NeiRong:
+        print("[注入] workbench.html 已包含脚本引用，跳过重复注入")
+        GengXin_JiaoYan_Zhi()
+        return
+
+    # 若残留半截注入，先清理再写入
+    if ZHU_RU_BIAO_JI in NeiRong or HAN_HUA_JS_MING in NeiRong:
+        HangLieBiao = NeiRong.splitlines(keepends=True)
+        XinHang = []
+        TiaoGuo = False
+        for Hang in HangLieBiao:
+            if ZHU_RU_BIAO_JI in Hang:
+                TiaoGuo = True
+                continue
+            if TiaoGuo and f'src="./{HAN_HUA_JS_MING}"' in Hang:
+                TiaoGuo = False
+                continue
+            if f'src="./{HAN_HUA_JS_MING}"' in Hang:
+                continue
+            if not TiaoGuo:
+                XinHang.append(Hang)
+        NeiRong = ''.join(XinHang)
+
     ZhuRu_DaiMa = f'\n\t{ZHU_RU_BIAO_JI}\n\t<script src="./{HAN_HUA_JS_MING}"></script>\n'
 
-    if '</body>' in NeiRong:
+    if '</html>' in NeiRong:
+        # 放在 </html> 前，兼容部分版本 </body> 后仍有内容的结构
+        NeiRong = NeiRong.replace('</html>', f'{ZhuRu_DaiMa}</html>')
+    elif '</body>' in NeiRong:
         NeiRong = NeiRong.replace('</body>', f'</body>\n{ZhuRu_DaiMa}')
     else:
-        NeiRong = NeiRong.replace('</html>', f'{ZhuRu_DaiMa}\n</html>')
+        NeiRong = NeiRong + ZhuRu_DaiMa
 
     with open(LuJing_Html, 'w', encoding='utf-8') as WenJian:
         WenJian.write(NeiRong)
@@ -1896,47 +2013,25 @@ def HuiFu_YuanShi():
         os.remove(LuJing_Js)
         print(f"[清理] 已删除脚本: {LuJing_Js}")
 
+    ZhuangTai = HuoQu_ZhuangTai_WenJian()
+    if os.path.exists(ZhuangTai):
+        os.remove(ZhuangTai)
+
     print("[完成] 已恢复原始状态")
 
 
-# ============================================================
-# ★★★ 主程序 ★★★
-# ============================================================
-
-def ZhuChengXu():
-    """主程序入口"""
-    print("=" * 60)
-    print("  Cursor 汉化 + 用量监控工具")
-    print(f"  时间: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-    print(f"  安装路径: {HuoQu_AnZhuang_LuJing()}")
-    print(f"  数据路径: {HuoQu_ShuJu_LuJing()}")
-    print("=" * 60)
-
-    # 恢复模式
-    if len(sys.argv) > 1 and sys.argv[1] == '--huifu':
-        print("\n[模式] 恢复原始文件...")
-        HuiFu_YuanShi()
-        return
-
-    # 检查 Cursor 安装目录
-    LuJing_Html = HuoQu_HTML_LuJing()
-    if not os.path.exists(LuJing_Html):
-        print(f"\n[错误] 未找到 workbench.html: {LuJing_Html}")
-        print(f"[提示] 请检查 CURSOR_AN_ZHUANG_LU_JING 是否正确: {HuoQu_AnZhuang_LuJing()}")
-        sys.exit(1)
-
-    # 读取认证令牌
-    print("\n[步骤 1/4] 读取认证信息...")
+def ShouJi_YongLiang_ShuJu():
+    """读取令牌并整理用量数据，失败时返回占位数据"""
+    print("\n[步骤] 读取认证信息...")
     LingPai, YouXiang = DuQu_FangWen_LingPai()
     if LingPai:
         print(f"[认证] 已找到令牌，邮箱: {YouXiang or '未知'}")
     else:
         print("[认证] 未找到认证令牌，将跳过用量获取（仅汉化）")
 
-    # 获取用量数据
     YongLiang_ShuJu = None
     if LingPai:
-        print("\n[步骤 2/4] 获取用量数据...")
+        print("[步骤] 获取用量数据...")
         YongLiang_ShuJu = ZhengHe_YongLiang_ShuJu(LingPai)
         if YongLiang_ShuJu and YongLiang_ShuJu.get("youXiao"):
             print(f"[用量] 合计: {YongLiang_ShuJu['zongBaiFen']}%  剩余: {YongLiang_ShuJu['shengYuBaiFen']}%")
@@ -1945,8 +2040,7 @@ def ZhuChengXu():
                 print(f"[用量] 计费周期: {YongLiang_ShuJu['jiFeiKaiShi']} 至 {YongLiang_ShuJu['jiFeiJieShu']}")
         else:
             print("[用量] 获取用量数据失败，将仅汉化")
-    else:
-        print("\n[步骤 2/4] 跳过用量获取（无令牌）")
+            YongLiang_ShuJu = None
 
     if not YongLiang_ShuJu:
         YongLiang_ShuJu = {
@@ -1956,28 +2050,218 @@ def ZhuChengXu():
             "jiFeiKaiShi": "", "jiFeiJieShu": "",
             "gengXinShiJian": "", "jiHua": "", "youXiao": False
         }
+    return YongLiang_ShuJu, LingPai or ""
 
-    # 检查是否已注入
-    if JianCha_YiZhuRu():
-        print("\n[检测] 脚本已注入，正在更新...")
-        XieRu_FanYi_JS(YongLiang_ShuJu, LingPai or "")
+
+def ZhiXing_ZhuRu(YongLiang_ShuJu, LingPai, QiangZhi_BeiFen=False):
+    """执行备份 + 写 JS + 注入 HTML + 记录版本"""
+    print("[步骤] 创建/刷新备份并写入脚本...")
+    ChuangJian_BeiFen(QiangZhi=QiangZhi_BeiFen)
+    XieRu_FanYi_JS(YongLiang_ShuJu, LingPai)
+    print("[步骤] 注入 HTML 引用...")
+    ZhuRu_HTML()
+    ZhuangTai = XieRu_ZhuRu_ZhuangTai()
+    print(f"[状态] 已记录注入版本: {ZhuangTai.get('version')} ({ZhuangTai.get('commit', '')[:8]})")
+
+
+def QueBao_ZhuRu(JingMo=False):
+    """
+    确保汉化有效：若 Cursor 更新导致注入丢失，则自动重新注入。
+    返回: (是否执行了修复, 说明文字)
+    """
+    XuYao, YuanYin = XuYao_ChongXin_ZhuRu()
+    if not XuYao:
+        # 注入完好：静默自愈时不再请求 API，避免计划任务频繁打用量接口
+        if JingMo:
+            XieRu_ZhuRu_ZhuangTai()
+            return False, YuanYin
+        if not JingMo:
+            print(f"[检测] {YuanYin}，仅刷新脚本与校验值...")
+        YongLiang_ShuJu, LingPai = ShouJi_YongLiang_ShuJu()
+        XieRu_FanYi_JS(YongLiang_ShuJu, LingPai)
         GengXin_JiaoYan_Zhi()
-        print("\n[完成] 脚本已更新！重启 Cursor 生效。")
+        XieRu_ZhuRu_ZhuangTai()
+        return False, YuanYin
+
+    if not JingMo:
+        print(f"[检测] 需要重新注入：{YuanYin}")
+    YongLiang_ShuJu, LingPai = ShouJi_YongLiang_ShuJu()
+    ZhiXing_ZhuRu(YongLiang_ShuJu, LingPai, QiangZhi_BeiFen=True)
+    return True, YuanYin
+
+
+def QingLi_Jiu_JiHua_RenWu():
+    """清理旧版定时/登录计划任务与启动项（不再使用）"""
+    for Ming in (JI_HUA_REN_WU_MING, JI_HUA_REN_WU_MING + "OnLogon"):
+        subprocess.run(["schtasks", "/Delete", "/F", "/TN", Ming], capture_output=True, text=True)
+    QiDong_Lnk = os.path.join(
+        os.environ.get("APPDATA", ""),
+        r"Microsoft\Windows\Start Menu\Programs\Startup",
+        "CursorChineseAutoHeal.lnk",
+    )
+    if os.path.exists(QiDong_Lnk):
+        os.remove(QiDong_Lnk)
+    Jiu_Bat = os.path.join(HuoQu_ZhuangTai_MuLu(), "auto_heal.bat")
+    if os.path.exists(Jiu_Bat):
+        os.remove(Jiu_Bat)
+
+
+def XieRu_QiDong_VBS():
+    """写入无窗口启动器：后台自愈后启动 Cursor"""
+    BenJiaoBen = os.path.abspath(__file__)
+    XiangMu_MuLu = os.path.dirname(BenJiaoBen)
+    Vbs_LuJing = os.path.join(XiangMu_MuLu, QI_DONG_VBS_MING)
+    PythonW = HuoQu_PythonW()
+    # VBS 字符串内用 "" 表示引号；路径保持单反斜杠
+    NeiRong = "\r\n".join([
+        'Set sh = CreateObject("WScript.Shell")',
+        f'sh.Run """{PythonW}"" ""{BenJiaoBen}"" --qi-dong", 0, True',
+        "",
+    ])
+    with open(Vbs_LuJing, "w", encoding="ascii", errors="replace") as WenJian:
+        WenJian.write(NeiRong)
+    return Vbs_LuJing
+
+
+def AnZhuang_ZiDong_XiuFu():
+    """安装「仅启动时后台检查」：桌面快捷方式，无弹窗、无定时任务"""
+    if os.name != 'nt':
+        print("[错误] 自动启动检查目前仅支持 Windows")
+        return False
+
+    print("\n[安装] 正在清理旧版定时任务...")
+    QingLi_Jiu_JiHua_RenWu()
+    print("[安装] 正在确保当前汉化有效...")
+    QueBao_ZhuRu(JingMo=False)
+
+    Vbs_LuJing = XieRu_QiDong_VBS()
+    print(f"[安装] 已写入无窗口启动器: {Vbs_LuJing}")
+
+    ZhuoMian = HuoQu_ZhuoMian_LuJing()
+    Lnk_LuJing = os.path.join(ZhuoMian, ZHUO_MIAN_KUAI_JIE_MING)
+    Cursor_Exe = os.path.join(HuoQu_AnZhuang_LuJing(), "Cursor.exe")
+    Ps = f'''
+$ws = New-Object -ComObject WScript.Shell
+$lnk = $ws.CreateShortcut('{Lnk_LuJing.replace("'", "''")}')
+$lnk.TargetPath = 'wscript.exe'
+$lnk.Arguments = '//nologo "{Vbs_LuJing.replace("'", "''")}"'
+$lnk.WorkingDirectory = '{os.path.dirname(Vbs_LuJing).replace("'", "''")}'
+$lnk.WindowStyle = 7
+if (Test-Path '{Cursor_Exe.replace("'", "''")}') {{ $lnk.IconLocation = '{Cursor_Exe.replace("'", "''")},0' }}
+$lnk.Description = '启动 Cursor（后台静默检查汉化，无弹窗）'
+$lnk.Save()
+'''
+    subprocess.run(["powershell", "-NoProfile", "-Command", Ps], capture_output=True, text=True)
+    if os.path.exists(Lnk_LuJing):
+        print(f"[安装] 已创建桌面快捷方式: {Lnk_LuJing}")
+    else:
+        print("[警告] 桌面快捷方式创建失败，请直接使用 QiDong_Cursor_ZhongWen.vbs")
+
+    print("\n[完成] 已改为「仅启动时后台检查」。")
+    print("  - 请用桌面「Cursor中文」启动（无黑框、无弹窗）")
+    print("  - 每次启动会先在后台检查/修复汉化，再打开 Cursor")
+    print("  - 已移除每 5 分钟定时任务与开机自启检查")
+    return True
+
+
+def XieZai_ZiDong_XiuFu():
+    """卸载桌面快捷方式与旧计划任务"""
+    if os.name != 'nt':
+        print("[错误] 仅支持 Windows")
+        return False
+
+    QingLi_Jiu_JiHua_RenWu()
+    print("[卸载] 已清理旧版计划任务/启动项")
+
+    Lnk_LuJing = os.path.join(HuoQu_ZhuoMian_LuJing(), ZHUO_MIAN_KUAI_JIE_MING)
+    if os.path.exists(Lnk_LuJing):
+        os.remove(Lnk_LuJing)
+        print(f"[卸载] 已删除桌面快捷方式: {Lnk_LuJing}")
+
+    print("[完成] 启动检查快捷方式已卸载（汉化文件本身未删除，可用 --huifu 完全恢复）")
+    return True
+
+
+# ============================================================
+# ★★★ 主程序 ★★★
+# ============================================================
+
+def ZhuChengXu():
+    """主程序入口"""
+    CaoZuo = sys.argv[1] if len(sys.argv) > 1 else ""
+    JingMo = CaoZuo in ("--xiu-fu", "--qi-dong")
+
+    if JingMo:
+        # 完全静默：无控制台输出、无弹窗
+        sys.stdout = open(os.devnull, "w", encoding="utf-8")
+        sys.stderr = open(os.devnull, "w", encoding="utf-8")
+
+    if not JingMo:
+        print("=" * 60)
+        print("  Cursor 汉化 + 用量监控工具")
+        print(f"  时间: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        print(f"  安装路径: {HuoQu_AnZhuang_LuJing()}")
+        print(f"  数据路径: {HuoQu_ShuJu_LuJing()}")
+        BanBen = HuoQu_Cursor_BanBen()
+        if BanBen.get("version"):
+            print(f"  Cursor 版本: {BanBen.get('version')}")
+        print("=" * 60)
+
+    if CaoZuo == '--huifu':
+        print("\n[模式] 恢复原始文件...")
+        HuiFu_YuanShi()
         return
 
-    # 首次注入
-    print(f"\n[步骤 3/4] 创建备份并写入脚本...")
-    ChuangJian_BeiFen()
-    XieRu_FanYi_JS(YongLiang_ShuJu, LingPai or "")
+    if CaoZuo == '--an-zhuang':
+        AnZhuang_ZiDong_XiuFu()
+        return
 
-    print("[步骤 4/4] 注入 HTML 引用...")
-    ZhuRu_HTML()
+    if CaoZuo == '--xie-zai':
+        XieZai_ZiDong_XiuFu()
+        return
+
+    # 检查 Cursor 安装目录
+    LuJing_Html = HuoQu_HTML_LuJing()
+    if not os.path.exists(LuJing_Html):
+        if not JingMo:
+            print(f"\n[错误] 未找到 workbench.html: {LuJing_Html}")
+            print(f"[提示] 请检查 CURSOR_AN_ZHUANG_LU_JING 是否正确: {HuoQu_AnZhuang_LuJing()}")
+        sys.exit(1)
+
+    # 后台静默：仅检查/修复
+    if CaoZuo == '--xiu-fu':
+        try:
+            QueBao_ZhuRu(JingMo=True)
+            sys.exit(0)
+        except Exception:
+            sys.exit(1)
+
+    # 后台静默：检查/修复后启动 Cursor
+    if CaoZuo == '--qi-dong':
+        try:
+            QueBao_ZhuRu(JingMo=True)
+            QiDong_Cursor()
+            sys.exit(0)
+        except Exception:
+            try:
+                QiDong_Cursor()
+            except Exception:
+                pass
+            sys.exit(1)
+
+    print("\n[模式] 检测并确保汉化有效（兼容 Cursor 版本更新）...")
+    YiXiuFu, YuanYin = QueBao_ZhuRu(JingMo=False)
 
     print("\n" + "=" * 60)
-    print("  [完成] Cursor 汉化 + 用量监控 注入成功！")
+    if YiXiuFu:
+        print("  [完成] 已重新注入汉化（Cursor 更新后自动修复）！")
+        print(f"  原因: {YuanYin}")
+    else:
+        print("  [完成] 汉化已是最新状态！")
     print("  请重启 Cursor 以查看效果。")
-    print("  如需恢复: python CursorHanHua_GongJu.py --huifu")
-    print("  如需更新用量: 重新运行本脚本即可")
+    print("  推荐执行一次: python CursorHanHua_GongJu.py --an-zhuang")
+    print("  之后用桌面「Cursor中文」启动即可（启动时后台静默检查）。")
+    print("  如需恢复英文: python CursorHanHua_GongJu.py --huifu")
     print("=" * 60)
 
 
