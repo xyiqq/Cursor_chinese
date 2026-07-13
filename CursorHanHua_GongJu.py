@@ -1,6 +1,11 @@
 # -*- coding: utf-8 -*-
 """
 Cursor 汉化 + 用量监控工具
+
+基于原项目 bjrzs/Cursor_chinese（作者：@bjrzs / 行云流水）二次开发。
+原仓库：https://github.com/bjrzs/Cursor_chinese
+本仓库：https://github.com/xyiqq/Cursor_chinese
+
 功能：
   1. 将翻译脚本注入 Cursor 的 workbench.html，实现设置页面中文化
   2. 自动从本地数据库读取认证令牌，调用 API 获取用量数据

@@ -1,5 +1,17 @@
 # Cursor Settings 页面汉化 + 用量监控工具
 
+## 致谢与出处
+
+本项目在 **[bjrzs/Cursor_chinese](https://github.com/bjrzs/Cursor_chinese)** 基础上二次开发与独立维护，感谢原作者的开源贡献。
+
+| 项目 | 说明 |
+|------|------|
+| **原仓库** | [https://github.com/bjrzs/Cursor_chinese](https://github.com/bjrzs/Cursor_chinese) |
+| **原作者** | [@bjrzs](https://github.com/bjrzs)（行云流水 / lx） |
+| **本仓库** | [https://github.com/xyiqq/Cursor_chinese](https://github.com/xyiqq/Cursor_chinese) |
+
+本 fork 在原有 Settings 汉化与用量显示能力上，额外增加了：菜单与 Agents/Worktrees 等页面汉化、聊天输入框上方用量条、Cursor 版本更新后启动自愈、用量与官网 `usage-summary` 同步及防覆盖刷新等。若上游长期未更新，请以本仓库 `master` 分支为准。
+
 ## 工具简介
 
 本工具用于将 Cursor IDE 的 Settings 页面（设置页面）从英文翻译为中文，同时在设置页面的用户信息区域下方实时显示 API 用量数据（总用量、高级模型用量、重置日期、倒计时等）。
