@@ -26,6 +26,7 @@ import sqlite3  # SQLite 数据库
 import subprocess  # 计划任务 / 快捷方式
 import urllib.request  # HTTP 请求
 import urllib.error  # HTTP 错误处理
+import time  # 后台用量轮询
 
 # ============================================================
 # ★★★ 用户配置区域 ★★★
@@ -41,6 +42,7 @@ CURSOR_SHU_JU_LU_JING = ""
 GONG_ZUO_TAI_HTML_XIANG_DUI = r"resources\app\out\vs\code\electron-sandbox\workbench"  # workbench 目录相对路径
 GONG_ZUO_TAI_HTML_MING = "workbench.html"  # workbench HTML 文件名
 HAN_HUA_JS_MING = "cursor_hanhua.js"  # 翻译脚本文件名
+YONG_LIANG_LIVE_JSON = "usage_live.json"  # 同目录实时用量（供 JS 同源读取，绕过跨域）
 ZHU_RU_BIAO_JI = "<!-- CURSOR_HANHUA_INJECTION -->"  # 注入标记
 BEI_FEN_HOU_ZHUI = ".bak"  # 备份文件后缀
 ZHUANG_TAI_MU_LU_MING = "Cursor_chinese_hanhua"  # 本工具状态目录名（位于 APPDATA）
@@ -114,7 +116,7 @@ def DuQu_FangWen_LingPai():
         return None, None
 
     try:
-        LianJie = sqlite3.connect(ShuJuKu_LuJing)  # 连接数据库
+        LianJie = sqlite3.connect(ShuJuKu_LuJing, timeout=5)  # 连接数据库（允许短暂等待锁）
         YouBiao = LianJie.cursor()  # 创建游标
 
         YouBiao.execute("SELECT value FROM ItemTable WHERE key=?", (LING_PAI_JIAN_MING,))  # 查询访问令牌
@@ -152,15 +154,19 @@ def HuoQu_YongLiang_ZongJie(LingPai):
     if not Cookie_Zhi:  # Cookie 构造失败
         return None
 
-    try:
-        QingQiu = urllib.request.Request(API_YONG_LIANG_ZONG_JIE)  # 创建请求
-        QingQiu.add_header('Cookie', f'WorkosCursorSessionToken={Cookie_Zhi}')  # 添加认证 Cookie
-        QingQiu.add_header('Accept', 'application/json')  # 期望 JSON 响应
-        XiangYing = urllib.request.urlopen(QingQiu, timeout=10)  # 发送请求
-        return json.loads(XiangYing.read().decode('utf-8'))  # 解析 JSON 响应
-    except Exception as CuoWu:
-        print(f"[警告] 获取总用量摘要失败: {CuoWu}")
-        return None
+    for ChangShi in range(3):
+        try:
+            QingQiu = urllib.request.Request(API_YONG_LIANG_ZONG_JIE)  # 创建请求
+            QingQiu.add_header('Cookie', f'WorkosCursorSessionToken={Cookie_Zhi}')  # 添加认证 Cookie
+            QingQiu.add_header('Accept', 'application/json')  # 期望 JSON 响应
+            XiangYing = urllib.request.urlopen(QingQiu, timeout=15)  # 发送请求
+            return json.loads(XiangYing.read().decode('utf-8'))  # 解析 JSON 响应
+        except Exception as CuoWu:
+            if ChangShi < 2:
+                time.sleep(1.5)
+                continue
+            print(f"[警告] 获取总用量摘要失败: {CuoWu}")
+            return None
 
 
 def HuoQu_GaoJi_YongLiang(LingPai):
@@ -192,11 +198,12 @@ def ZhengHe_YongLiang_ShuJu(LingPai):
         "jiFeiJieShu": "",   # 计费周期结束
         "gengXinShiJian": datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'),  # 数据更新时间
         "jiHua": "pro",      # 计划类型
-        "youXiao": False,    # 数据是否有效
+        "youXiao": False,    # 数据是否有效（仅 usage-summary 成功时为 True）
+        "summaryOk": False,  # usage-summary 是否成功（防止部分 API 失败误标有效）
         "moXingXiangQing": {}  # 各模型详细用量
     }
 
-    # 获取总用量摘要
+    # 获取总用量摘要（百分比以该接口为准）
     ZongJie = HuoQu_YongLiang_ZongJie(LingPai)  # 调用 API
     if ZongJie and 'individualUsage' in ZongJie:  # 有有效数据
         JiHua = ZongJie['individualUsage'].get('plan', {})  # 提取计划用量
@@ -208,6 +215,7 @@ def ZhengHe_YongLiang_ShuJu(LingPai):
         ShuJu["apiBaiFen"] = round(JiHua.get('apiPercentUsed', 0), 1)  # API 百分比
         ShuJu["autoBaiFen"] = round(JiHua.get('autoPercentUsed', 0), 1)  # Auto 百分比
         ShuJu["jiHua"] = ZongJie.get('membershipType', 'pro')  # 计划类型
+        ShuJu["summaryOk"] = True
         ShuJu["youXiao"] = True  # 标记为有效
 
         # 解析计费周期日期
@@ -252,10 +260,43 @@ def ZhengHe_YongLiang_ShuJu(LingPai):
             except Exception:
                 pass
 
-        if not ShuJu["youXiao"]:
-            ShuJu["youXiao"] = True
-
     return ShuJu  # 返回整合后的数据
+
+
+def DuQu_YongLiang_LiveJson():
+    """读取已写入的实时用量 JSON"""
+    LuJing = HuoQu_Live_JSON_LuJing()
+    if not os.path.exists(LuJing):
+        return None
+    try:
+        with open(LuJing, 'r', encoding='utf-8') as WenJian:
+            return json.load(WenJian)
+    except Exception:
+        return None
+
+
+def YongLiang_ShuJu_KeXin(ShuJu):
+    """仅当 usage-summary 成功时才视为可信用量"""
+    return bool(ShuJu and ShuJu.get("summaryOk") and ShuJu.get("youXiao"))
+
+
+def BuYing_Gai_FuGai_LiveJson(Xin, Jiu):
+    """避免用失败/空数据覆盖上次有效用量"""
+    if not YongLiang_ShuJu_KeXin(Xin):
+        return True
+    if not Jiu or not YongLiang_ShuJu_KeXin(Jiu):
+        return False
+    XinQuanBuWeiLing = (
+        (Xin.get("zongBaiFen") or 0) == 0
+        and (Xin.get("apiBaiFen") or 0) == 0
+        and (Xin.get("autoBaiFen") or 0) == 0
+    )
+    JiuYouZhi = (
+        (Jiu.get("zongBaiFen") or 0) > 0
+        or (Jiu.get("apiBaiFen") or 0) > 0
+        or (Jiu.get("autoBaiFen") or 0) > 0
+    )
+    return XinQuanBuWeiLing and JiuYouZhi
 
 
 # ============================================================
@@ -1401,15 +1442,59 @@ def ShengCheng_JS_DaiMa(YongLiang_ShuJu, YuanShi_LingPai=""):
         } catch (e) { return null; }
     }
 
+    function _JieXi_BaiFenFromMsg(msg) {
+        if (!msg) return null;
+        var m = String(msg).match(/([\\d]+(?:\\.[\\d]+)?)\\s*%/);
+        return m ? Math.round(parseFloat(m[1]) * 10) / 10 : null;
+    }
+
+    function _YingYong_YongLiangShuJu(src) {
+        if (!src || !src.youXiao) return false;
+        if (src.summaryOk === false) return false;
+        YONG_LIANG.zongYong = src.zongYong != null ? src.zongYong : YONG_LIANG.zongYong;
+        YONG_LIANG.zongXian = src.zongXian != null ? src.zongXian : YONG_LIANG.zongXian;
+        YONG_LIANG.shengYu = src.shengYu != null ? src.shengYu : YONG_LIANG.shengYu;
+        YONG_LIANG.zongBaiFen = src.zongBaiFen != null ? src.zongBaiFen : YONG_LIANG.zongBaiFen;
+        YONG_LIANG.shengYuBaiFen = src.shengYuBaiFen != null ? src.shengYuBaiFen : YONG_LIANG.shengYuBaiFen;
+        YONG_LIANG.apiBaiFen = src.apiBaiFen != null ? src.apiBaiFen : YONG_LIANG.apiBaiFen;
+        YONG_LIANG.autoBaiFen = src.autoBaiFen != null ? src.autoBaiFen : YONG_LIANG.autoBaiFen;
+        YONG_LIANG.jiHua = src.jiHua || YONG_LIANG.jiHua;
+        YONG_LIANG.jiFeiKaiShi = src.jiFeiKaiShi || YONG_LIANG.jiFeiKaiShi;
+        YONG_LIANG.jiFeiJieShu = src.jiFeiJieShu || YONG_LIANG.jiFeiJieShu;
+        YONG_LIANG.gengXinShiJian = src.gengXinShiJian || new Date().toLocaleString();
+        YONG_LIANG.youXiao = true;
+        return true;
+    }
+
+    function _JiaZai_LiveJson(huiDiao) {
+        try {
+            fetch('./usage_live.json?t=' + Date.now(), { cache: 'no-store' })
+                .then(function(r) { return r.ok ? r.json() : null; })
+                .then(function(data) {
+                    if (data && _YingYong_YongLiangShuJu(data)) {
+                        GengXin_KaPian();
+                    }
+                    if (huiDiao) huiDiao(!!data);
+                })
+                .catch(function() { if (huiDiao) huiDiao(false); });
+        } catch (e) {
+            if (huiDiao) huiDiao(false);
+        }
+    }
+
     function _JieXi_Summary(data) {
         if (!data || !data.individualUsage) return;
         var plan = data.individualUsage.plan || {};
         YONG_LIANG.zongYong = plan.used || 0;
         YONG_LIANG.zongXian = plan.limit || YONG_LIANG.zongXian || 2000;
         YONG_LIANG.shengYu = plan.remaining != null ? plan.remaining : Math.max(0, YONG_LIANG.zongXian - YONG_LIANG.zongYong);
-        YONG_LIANG.zongBaiFen = Math.round((plan.totalPercentUsed || 0) * 10) / 10;
+        var zongFromPlan = plan.totalPercentUsed;
+        var zongFromMsg = _JieXi_BaiFenFromMsg(data.autoModelSelectedDisplayMessage);
+        YONG_LIANG.zongBaiFen = Math.round((zongFromPlan != null ? zongFromPlan : (zongFromMsg || 0)) * 10) / 10;
         YONG_LIANG.shengYuBaiFen = Math.round(Math.max(0, 100 - YONG_LIANG.zongBaiFen) * 10) / 10;
-        YONG_LIANG.apiBaiFen = Math.round((plan.apiPercentUsed || 0) * 10) / 10;
+        var apiFromPlan = plan.apiPercentUsed;
+        var apiFromMsg = _JieXi_BaiFenFromMsg(data.namedModelSelectedDisplayMessage);
+        YONG_LIANG.apiBaiFen = Math.round((apiFromPlan != null ? apiFromPlan : (apiFromMsg || 0)) * 10) / 10;
         YONG_LIANG.autoBaiFen = Math.round((plan.autoPercentUsed || 0) * 10) / 10;
         YONG_LIANG.jiHua = data.membershipType || YONG_LIANG.jiHua;
         YONG_LIANG.youXiao = true;
@@ -1451,12 +1536,17 @@ def ShengCheng_JS_DaiMa(YongLiang_ShuJu, YuanShi_LingPai=""):
         }
 
         var pending = 0;
+        var wangZhanOk = false;
         function done() {
             pending--;
             if (pending <= 0) {
                 _ZhengZaiShuaXin = false;
                 YONG_LIANG._shiShi = true;
-                GengXin_KaPian();
+                if (!wangZhanOk) {
+                    _JiaZai_LiveJson(function() { GengXin_KaPian(); });
+                } else {
+                    GengXin_KaPian();
+                }
             }
         }
 
@@ -1466,18 +1556,23 @@ def ShengCheng_JS_DaiMa(YongLiang_ShuJu, YuanShi_LingPai=""):
             try {
                 var xhr1 = new XMLHttpRequest();
                 xhr1.open('GET', 'https://www.cursor.com/api/usage-summary', true);
-                xhr1.withCredentials = true;
                 xhr1.setRequestHeader('Cookie', 'WorkosCursorSessionToken=' + cookie);
                 xhr1.setRequestHeader('Accept', 'application/json');
                 xhr1.onload = function() {
                     if (xhr1.status === 200) {
-                        try { _JieXi_Summary(JSON.parse(xhr1.responseText)); } catch (e) { console.log('[HanHua] summary parse', e); }
+                        try {
+                            _JieXi_Summary(JSON.parse(xhr1.responseText));
+                            wangZhanOk = true;
+                        } catch (e) { console.log('[HanHua] summary parse', e); }
                     }
                     done();
                 };
                 xhr1.onerror = done;
                 xhr1.send();
             } catch (e) { done(); }
+        } else {
+            pending++;
+            _JiaZai_LiveJson(function() { done(); });
         }
 
         pending++;
@@ -1662,7 +1757,10 @@ def ShengCheng_JS_DaiMa(YongLiang_ShuJu, YuanShi_LingPai=""):
             if (document.body) {
                 FanYi_ZiShu(document.body);
                 ChaRu_YongLiang_XianShi();
-                if (_XHJ_LP) { setTimeout(function() { ShiShi_ShuaXin(false); }, 1500); }
+                _JiaZai_LiveJson(function() {
+                    ChaRu_YongLiang_XianShi();
+                    if (_XHJ_LP) { setTimeout(function() { ShiShi_ShuaXin(false); }, 800); }
+                });
             }
         }, 500);
 
@@ -1678,9 +1776,11 @@ def ShengCheng_JS_DaiMa(YongLiang_ShuJu, YuanShi_LingPai=""):
 
         if (_XHJ_LP) {
             setInterval(function() {
-                if (document.getElementById('cursor-yongliang-chat')) {
-                    ShiShi_ShuaXin(false);
-                }
+                _JiaZai_LiveJson(function(ok) {
+                    if (!ok && document.getElementById('cursor-yongliang-chat')) {
+                        ShiShi_ShuaXin(false);
+                    }
+                });
             }, 60000);
         }
     }
@@ -1711,6 +1811,11 @@ def HuoQu_HTML_LuJing():
 def HuoQu_JS_LuJing():
     """获取翻译 JS 文件完整路径"""
     return os.path.join(HuoQu_GongZuoTai_LuJing(), HAN_HUA_JS_MING)
+
+
+def HuoQu_Live_JSON_LuJing():
+    """获取实时用量 JSON 文件路径（与 workbench 同目录，JS 可同源 fetch）"""
+    return os.path.join(HuoQu_GongZuoTai_LuJing(), YONG_LIANG_LIVE_JSON)
 
 
 def HuoQu_BeiFen_LuJing():
@@ -1840,6 +1945,95 @@ def QiDong_Cursor():
     )
 
 
+def _YongLiang_JianKong_Suo():
+    return os.path.join(HuoQu_ZhuangTai_MuLu(), "usage_watch.pid")
+
+
+def _JinCheng_HuoZhe(pid):
+    if not pid or pid <= 0:
+        return False
+    if os.name != "nt":
+        try:
+            os.kill(pid, 0)
+            return True
+        except OSError:
+            return False
+    try:
+        import ctypes
+        kernel32 = ctypes.windll.kernel32
+        handle = kernel32.OpenProcess(0x1000, False, int(pid))
+        if handle:
+            kernel32.CloseHandle(handle)
+            return True
+    except Exception:
+        pass
+    return False
+
+
+def Shi_Cursor_YunXing():
+    """检测 Cursor 主进程是否仍在运行"""
+    Ming = "Cursor.exe"
+    try:
+        JieGuo = subprocess.run(
+            ["tasklist", "/FI", f"IMAGENAME eq {Ming}", "/NH"],
+            capture_output=True,
+            text=True,
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0) if os.name == "nt" else 0,
+        )
+        WenBen = (JieGuo.stdout or "") + (JieGuo.stderr or "")
+        return Ming.lower() in WenBen.lower() and "no tasks" not in WenBen.lower()
+    except Exception:
+        return True
+
+
+def QiDong_YongLiang_JianKong():
+    """后台启动用量刷新（Cursor 运行期间每 60 秒更新 usage_live.json）"""
+    Suo = _YongLiang_JianKong_Suo()
+    if os.path.exists(Suo):
+        try:
+            with open(Suo, "r", encoding="utf-8") as WenJian:
+                Jiu_Pid = int((WenJian.read() or "").strip())
+            if _JinCheng_HuoZhe(Jiu_Pid):
+                return
+        except Exception:
+            pass
+
+    BenJiaoBen = os.path.abspath(__file__)
+    PythonW = HuoQu_PythonW()
+    CaoZuoXiTong = getattr(subprocess, "CREATE_NO_WINDOW", 0) if os.name == "nt" else 0
+    subprocess.Popen(
+        [PythonW, BenJiaoBen, "--usage-watch"],
+        cwd=os.path.dirname(BenJiaoBen),
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        creationflags=CaoZuoXiTong,
+    )
+
+
+def YongLiang_JianKong_Loop():
+    """Cursor 运行期间定时拉取官网用量并写入 usage_live.json"""
+    Suo = _YongLiang_JianKong_Suo()
+    os.makedirs(os.path.dirname(Suo), exist_ok=True)
+    with open(Suo, "w", encoding="utf-8") as WenJian:
+        WenJian.write(str(os.getpid()))
+    try:
+        while Shi_Cursor_YunXing():
+            try:
+                GengXin_YongLiang_XianShi(JingMo=True)
+            except Exception:
+                pass
+            for _ in range(60):
+                if not Shi_Cursor_YunXing():
+                    break
+                time.sleep(1)
+    finally:
+        try:
+            if os.path.exists(Suo):
+                os.remove(Suo)
+        except Exception:
+            pass
+
+
 # ============================================================
 # ★★★ 注入与恢复函数 ★★★
 # ============================================================
@@ -1886,7 +2080,20 @@ def XieRu_FanYi_JS(YongLiang_ShuJu, LingPai=""):
     JS_NeiRong = ShengCheng_JS_DaiMa(YongLiang_ShuJu, LingPai)
     with open(LuJing_Js, 'w', encoding='utf-8') as WenJian:
         WenJian.write(JS_NeiRong)
+    XieRu_YongLiang_LiveJson(YongLiang_ShuJu)
     print(f"[写入] 脚本已写入: {LuJing_Js}")
+
+
+def XieRu_YongLiang_LiveJson(YongLiang_ShuJu):
+    """写入实时用量 JSON，供运行中的 Cursor 通过同源 fetch 刷新显示"""
+    if not YongLiang_ShuJu:
+        return
+    Jiu = DuQu_YongLiang_LiveJson()
+    if BuYing_Gai_FuGai_LiveJson(YongLiang_ShuJu, Jiu):
+        return
+    LuJing = HuoQu_Live_JSON_LuJing()
+    with open(LuJing, 'w', encoding='utf-8') as WenJian:
+        json.dump(YongLiang_ShuJu, WenJian, ensure_ascii=False, indent=2)
 
 
 def ZhuRu_HTML():
@@ -2020,26 +2227,32 @@ def HuiFu_YuanShi():
     print("[完成] 已恢复原始状态")
 
 
-def ShouJi_YongLiang_ShuJu():
+def ShouJi_YongLiang_ShuJu(JingMo=False):
     """读取令牌并整理用量数据，失败时返回占位数据"""
-    print("\n[步骤] 读取认证信息...")
+    if not JingMo:
+        print("\n[步骤] 读取认证信息...")
     LingPai, YouXiang = DuQu_FangWen_LingPai()
     if LingPai:
-        print(f"[认证] 已找到令牌，邮箱: {YouXiang or '未知'}")
+        if not JingMo:
+            print(f"[认证] 已找到令牌，邮箱: {YouXiang or '未知'}")
     else:
-        print("[认证] 未找到认证令牌，将跳过用量获取（仅汉化）")
+        if not JingMo:
+            print("[认证] 未找到认证令牌，将跳过用量获取（仅汉化）")
 
     YongLiang_ShuJu = None
     if LingPai:
-        print("[步骤] 获取用量数据...")
+        if not JingMo:
+            print("[步骤] 获取用量数据...")
         YongLiang_ShuJu = ZhengHe_YongLiang_ShuJu(LingPai)
         if YongLiang_ShuJu and YongLiang_ShuJu.get("youXiao"):
-            print(f"[用量] 合计: {YongLiang_ShuJu['zongBaiFen']}%  剩余: {YongLiang_ShuJu['shengYuBaiFen']}%")
-            print(f"[用量] Auto: {YongLiang_ShuJu['autoBaiFen']}%  API: {YongLiang_ShuJu['apiBaiFen']}%")
-            if YongLiang_ShuJu.get('jiFeiKaiShi'):
-                print(f"[用量] 计费周期: {YongLiang_ShuJu['jiFeiKaiShi']} 至 {YongLiang_ShuJu['jiFeiJieShu']}")
+            if not JingMo:
+                print(f"[用量] 合计: {YongLiang_ShuJu['zongBaiFen']}%  剩余: {YongLiang_ShuJu['shengYuBaiFen']}%")
+                print(f"[用量] Auto: {YongLiang_ShuJu['autoBaiFen']}%  API: {YongLiang_ShuJu['apiBaiFen']}%")
+                if YongLiang_ShuJu.get('jiFeiKaiShi'):
+                    print(f"[用量] 计费周期: {YongLiang_ShuJu['jiFeiKaiShi']} 至 {YongLiang_ShuJu['jiFeiJieShu']}")
         else:
-            print("[用量] 获取用量数据失败，将仅汉化")
+            if not JingMo:
+                print("[用量] 获取用量数据失败，将仅汉化")
             YongLiang_ShuJu = None
 
     if not YongLiang_ShuJu:
@@ -2048,7 +2261,7 @@ def ShouJi_YongLiang_ShuJu():
             "gaoJiYong": 0, "gaoJiXian": 0,
             "zongBaiFen": 0, "shengYuBaiFen": 100, "apiBaiFen": 0, "autoBaiFen": 0,
             "jiFeiKaiShi": "", "jiFeiJieShu": "",
-            "gengXinShiJian": "", "jiHua": "", "youXiao": False
+            "gengXinShiJian": "", "jiHua": "", "youXiao": False, "summaryOk": False
         }
     return YongLiang_ShuJu, LingPai or ""
 
@@ -2064,30 +2277,40 @@ def ZhiXing_ZhuRu(YongLiang_ShuJu, LingPai, QiangZhi_BeiFen=False):
     print(f"[状态] 已记录注入版本: {ZhuangTai.get('version')} ({ZhuangTai.get('commit', '')[:8]})")
 
 
+def GengXin_YongLiang_XianShi(JingMo=False):
+    """拉取最新用量并写入 live json / 注入脚本"""
+    YongLiang_ShuJu, LingPai = ShouJi_YongLiang_ShuJu(JingMo=JingMo)
+    Jiu = DuQu_YongLiang_LiveJson()
+    if not YongLiang_ShuJu_KeXin(YongLiang_ShuJu) and YongLiang_ShuJu_KeXin(Jiu):
+        if not JingMo:
+            print("[用量] 本次拉取未拿到官网百分比，保留上次有效数据")
+        return Jiu
+    XieRu_YongLiang_LiveJson(YongLiang_ShuJu)
+    if JianCha_YiZhuRu() and YongLiang_ShuJu_KeXin(YongLiang_ShuJu):
+        XieRu_FanYi_JS(YongLiang_ShuJu, LingPai)
+        GengXin_JiaoYan_Zhi()
+    return YongLiang_ShuJu if YongLiang_ShuJu_KeXin(YongLiang_ShuJu) else (Jiu or YongLiang_ShuJu)
+
+
 def QueBao_ZhuRu(JingMo=False):
     """
     确保汉化有效：若 Cursor 更新导致注入丢失，则自动重新注入。
     返回: (是否执行了修复, 说明文字)
     """
     XuYao, YuanYin = XuYao_ChongXin_ZhuRu()
-    if not XuYao:
-        # 注入完好：静默自愈时不再请求 API，避免计划任务频繁打用量接口
-        if JingMo:
-            XieRu_ZhuRu_ZhuangTai()
-            return False, YuanYin
+
+    if XuYao:
         if not JingMo:
-            print(f"[检测] {YuanYin}，仅刷新脚本与校验值...")
-        YongLiang_ShuJu, LingPai = ShouJi_YongLiang_ShuJu()
-        XieRu_FanYi_JS(YongLiang_ShuJu, LingPai)
-        GengXin_JiaoYan_Zhi()
-        XieRu_ZhuRu_ZhuangTai()
-        return False, YuanYin
+            print(f"[检测] 需要重新注入：{YuanYin}")
+        YongLiang_ShuJu, LingPai = ShouJi_YongLiang_ShuJu(JingMo=JingMo)
+        ZhiXing_ZhuRu(YongLiang_ShuJu, LingPai, QiangZhi_BeiFen=True)
+        return True, YuanYin
 
     if not JingMo:
-        print(f"[检测] 需要重新注入：{YuanYin}")
-    YongLiang_ShuJu, LingPai = ShouJi_YongLiang_ShuJu()
-    ZhiXing_ZhuRu(YongLiang_ShuJu, LingPai, QiangZhi_BeiFen=True)
-    return True, YuanYin
+        print(f"[检测] {YuanYin}，刷新用量数据...")
+    GengXin_YongLiang_XianShi(JingMo=JingMo)
+    XieRu_ZhuRu_ZhuangTai()
+    return False, YuanYin
 
 
 def QingLi_Jiu_JiHua_RenWu():
@@ -2189,7 +2412,7 @@ def XieZai_ZiDong_XiuFu():
 def ZhuChengXu():
     """主程序入口"""
     CaoZuo = sys.argv[1] if len(sys.argv) > 1 else ""
-    JingMo = CaoZuo in ("--xiu-fu", "--qi-dong")
+    JingMo = CaoZuo in ("--xiu-fu", "--qi-dong", "--usage-watch")
 
     if JingMo:
         # 完全静默：无控制台输出、无弹窗
@@ -2241,12 +2464,21 @@ def ZhuChengXu():
         try:
             QueBao_ZhuRu(JingMo=True)
             QiDong_Cursor()
+            QiDong_YongLiang_JianKong()
             sys.exit(0)
         except Exception:
             try:
                 QiDong_Cursor()
             except Exception:
                 pass
+            sys.exit(1)
+
+    # 后台静默：Cursor 运行期间定时刷新用量
+    if CaoZuo == '--usage-watch':
+        try:
+            YongLiang_JianKong_Loop()
+            sys.exit(0)
+        except Exception:
             sys.exit(1)
 
     print("\n[模式] 检测并确保汉化有效（兼容 Cursor 版本更新）...")
