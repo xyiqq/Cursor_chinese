@@ -1647,7 +1647,7 @@ def ShengCheng_JS_DaiMa(YongLiang_ShuJu, YuanShi_LingPai=""):
         var W = _ce('div',
             'display:flex;align-items:center;flex-wrap:wrap;gap:2px 4px;' +
             'width:100%;box-sizing:border-box;' +
-            'margin:0 0 6px 0;padding:6px 10px;' +
+            'margin:6px 0 0 0;padding:6px 10px;' +
             'border-radius:8px;' +
             'background:var(--vscode-editorWidget-background, rgba(128,128,128,0.08));' +
             'border:1px solid var(--vscode-widget-border, rgba(128,128,128,0.18));' +
@@ -1720,8 +1720,8 @@ def ShengCheng_JS_DaiMa(YongLiang_ShuJu, YuanShi_LingPai=""):
 
         if (!shuRu) return !!existing;
 
-        // 已正确插在输入框正上方则保留
-        if (existing && existing.parentElement && existing.nextElementSibling === shuRu) {
+        // 已正确插在输入框正下方则保留
+        if (existing && existing.parentElement && existing.previousElementSibling === shuRu) {
             return true;
         }
 
@@ -1733,8 +1733,9 @@ def ShengCheng_JS_DaiMa(YongLiang_ShuJu, YuanShi_LingPai=""):
         }
 
         if (shuRu.parentElement) {
-            shuRu.parentElement.insertBefore(tiao, shuRu);
-            console.log('[HanHua] Usage bar inserted above input');
+            // 插在输入框下方：上方会被 Changes/Push 等动态操作按钮遮挡
+            shuRu.parentElement.insertBefore(tiao, shuRu.nextSibling);
+            console.log('[HanHua] Usage bar inserted below input');
             return true;
         }
         return false;
