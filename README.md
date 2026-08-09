@@ -1,5 +1,7 @@
 # Cursor Settings 页面汉化 + 用量监控工具
 
+**当前版本：1.2.0**
+
 ## 致谢与出处
 
 本项目在 **[bjrzs/Cursor_chinese](https://github.com/bjrzs/Cursor_chinese)** 基础上二次开发与独立维护，感谢原作者的开源贡献。
@@ -10,7 +12,15 @@
 | **原作者** | [@bjrzs](https://github.com/bjrzs)（行云流水 / lx） |
 | **本仓库** | [https://github.com/xyiqq/Cursor_chinese](https://github.com/xyiqq/Cursor_chinese) |
 
-本 fork 在原有 Settings 汉化与用量显示能力上，额外增加了：菜单与 Agents/Worktrees 等页面汉化、聊天输入框上方用量条、Cursor 版本更新后启动自愈、用量与官网 `usage-summary` 同步及防覆盖刷新等。若上游长期未更新，请以本仓库 `master` 分支为准。
+本 fork 在原有 Settings 汉化与用量显示能力上，额外增加了：菜单与 Agents/Worktrees 等页面汉化、聊天输入框下方用量条、Cursor 版本更新后启动自愈、用量与官网 `usage-summary` 同步及防覆盖刷新等。若上游长期未更新，请以本仓库 `master` 分支为准。
+
+## 更新日志
+
+### 1.2.0
+
+- 修复计费周期重置后用量条不更新：官网合法返回约 0% 时，不再被「防失败覆盖」逻辑误拦
+- 计费周期变化或已用次数变化时允许写入 `usage_live.json`
+- 文档修正：用量条位于聊天输入框下方
 
 ## 工具简介
 
@@ -114,10 +124,11 @@ Python 脚本
 
 3. **翻译字典**：使用 `Map` 数据结构存储英文→中文的映射关系（500+ 条），查找效率为 O(1)；同时支持正则模式匹配，用于翻译带动态数字的文本（如"3 requests remaining"）。
 
-4. **用量显示**：用量条插入 **聊天输入框上方**（嵌入布局，不遮挡输入），常驻显示：
+4. **用量显示**：用量条插入 **聊天输入框下方**（嵌入布局，避免被操作按钮遮挡），常驻显示：
    - 合计、剩余、Auto%、API%、重置日期
    - 数据同步自官网 `cursor.com/api/usage-summary`（与官网一致）
    - 点击可刷新，每 60 秒自动刷新
+   - 计费周期重置后的 0% 用量视为合法数据，不会被防覆盖逻辑卡住
 
 5. **认证方式**：脚本自动从 `state.vscdb`（Cursor 本地 SQLite 数据库）读取 `cursorAuth/accessToken`，无需手动配置 API Key。令牌以 Base64 编码嵌入 JS 文件，在浏览器端解码后用于 API 请求。
 
@@ -169,6 +180,7 @@ Python 脚本
 | 部分文本未翻译 | 在 `FanYi_CiDian` 字典中添加对应的英文→中文映射 |
 | 用量卡片不显示 | 检查 `CURSOR_SHU_JU_LU_JING` 路径是否正确，确认已登录 Cursor |
 | 用量数据获取失败 | 检查网络连接，或令牌已过期（重新登录 Cursor 后重新运行脚本） |
+| 官网已重置但本地仍显示旧用量 | 升级至 1.2.0+；或重新运行 `python CursorHanHua_GongJu.py` 后点击用量条刷新 |
 | Cursor 启动异常 | 运行 `python CursorHanHua_GongJu.py --huifu` 恢复原始文件 |
 | 更新后汉化消失 | 用桌面「Cursor中文」重新启动一次；或运行 `python CursorHanHua_GongJu.py --an-zhuang` |
 
