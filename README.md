@@ -21,6 +21,7 @@
 - 修复计费周期重置后用量条不更新：官网合法返回约 0% 时，不再被「防失败覆盖」逻辑误拦
 - 计费周期变化或已用次数变化时允许写入 `usage_live.json`
 - 文档修正：用量条位于聊天输入框下方
+- 移除仓库中的本机绝对路径启动器；改为 `QiDong_Cursor_ZhongWen.vbs.example` 模板，真实 VBS 由 `--an-zhuang` 生成本机路径且不再入库
 
 ## 工具简介
 
@@ -33,7 +34,8 @@
 | 文件 | 说明 |
 |------|------|
 | `CursorHanHua_GongJu.py` | Python 汉化注入主程序（核心脚本） |
-| `QiDong_Cursor_ZhongWen.vbs` | 无窗口启动器（后台检查后启动 Cursor） |
+| `QiDong_Cursor_ZhongWen.vbs.example` | 无窗口启动器模板（可移植，无本机路径） |
+| `QiDong_Cursor_ZhongWen.vbs` | 安装后由脚本生成本机启动器（已 gitignore，勿提交） |
 | `QiDong_Cursor_ZhongWen.bat` | 调用上面的 VBS（兼容双击） |
 | `README.md` | 本说明文档 |
 
