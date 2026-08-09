@@ -1,0 +1,7 @@
+' 本文件由安装脚本自动生成，请勿手写本机路径后提交到 Git。
+' 请先运行: python CursorHanHua_GongJu.py --an-zhuang
+' 以下为可移植启动模板（使用 PATH 中的 pythonw + 脚本相对目录）。
+Set sh = CreateObject("WScript.Shell")
+Set fso = CreateObject("Scripting.FileSystemObject")
+scriptDir = fso.GetParentFolderName(WScript.ScriptFullName)
+sh.Run "pythonw """ & scriptDir & "\CursorHanHua_GongJu.py"" --qi-dong", 0, True
