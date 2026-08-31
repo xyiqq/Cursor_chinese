@@ -1,0 +1,14 @@
+# 本机安装生成的启动器（含绝对路径），勿提交
+QiDong_Cursor_ZhongWen.vbs
+
+# Python 缓存
+__pycache__/
+*.pyc
+
+# 本地调试临时文件
+*_temp.bat
+*_debug*.py
+*_fix*.py
+install_log.txt
+fetch_usage.txt
+vbs_fix.txt

@@ -33,6 +33,9 @@ import urllib.request  # HTTP 请求
 import urllib.error  # HTTP 错误处理
 import time  # 后台用量轮询
 
+# 本工具版本（与 README 保持一致）
+GONG_JU_BAN_BEN = "1.2.0"
+
 # ============================================================
 # ★★★ 用户配置区域 ★★★
 # ============================================================
@@ -286,20 +289,33 @@ def YongLiang_ShuJu_KeXin(ShuJu):
 
 
 def BuYing_Gai_FuGai_LiveJson(Xin, Jiu):
-    """避免用失败/空数据覆盖上次有效用量"""
+    """避免用失败/空数据覆盖上次有效用量。
+
+    注意：计费周期重置后官网常返回 0%，这是合法数据，不能当失败拦截。
+    """
     if not YongLiang_ShuJu_KeXin(Xin):
         return True
     if not Jiu or not YongLiang_ShuJu_KeXin(Jiu):
+        return False
+    # 计费周期变化（重置）时允许写入，即使新数据为 0%
+    if (Xin.get("jiFeiKaiShi") or "") != (Jiu.get("jiFeiKaiShi") or ""):
+        return False
+    if (Xin.get("jiFeiJieShu") or "") != (Jiu.get("jiFeiJieShu") or ""):
+        return False
+    # 已用次数变化时允许写入（周期初百分比常为 0，但 used 可能已有少量）
+    if (Xin.get("zongYong") or 0) != (Jiu.get("zongYong") or 0):
         return False
     XinQuanBuWeiLing = (
         (Xin.get("zongBaiFen") or 0) == 0
         and (Xin.get("apiBaiFen") or 0) == 0
         and (Xin.get("autoBaiFen") or 0) == 0
+        and (Xin.get("zongYong") or 0) == 0
     )
     JiuYouZhi = (
         (Jiu.get("zongBaiFen") or 0) > 0
         or (Jiu.get("apiBaiFen") or 0) > 0
         or (Jiu.get("autoBaiFen") or 0) > 0
+        or (Jiu.get("zongYong") or 0) > 0
     )
     return XinQuanBuWeiLing and JiuYouZhi
 
@@ -2441,6 +2457,7 @@ def ZhuChengXu():
     if not JingMo:
         print("=" * 60)
         print("  Cursor 汉化 + 用量监控工具")
+        print(f"  工具版本: {GONG_JU_BAN_BEN}")
         print(f"  时间: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
         print(f"  安装路径: {HuoQu_AnZhuang_LuJing()}")
         print(f"  数据路径: {HuoQu_ShuJu_LuJing()}")
