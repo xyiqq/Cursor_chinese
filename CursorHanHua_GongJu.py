@@ -1116,6 +1116,20 @@ def ShengCheng_JS_DaiMa(YongLiang_ShuJu, YuanShi_LingPai=""):
         ["New Local Git Repo", "新建本地 Git 仓库"],
         ["Repository URL (https or SSH)", "仓库地址（https 或 SSH）"],
 
+        // ==================== 会话右键菜单 ====================
+        ["Pin", "固定"],
+        ["Unpin", "取消固定"],
+        ["Rename", "重命名"],
+        ["Edit Icon", "编辑图标"],
+        ["Mark as Unread", "标为未读"],
+        ["Mark as Read", "标为已读"],
+        ["Fork", "分叉"],
+        ["Move to", "移动到"],
+        ["Move to folder", "移动到文件夹"],
+        ["Archive", "归档"],
+        ["Unarchive", "取消归档"],
+        ["Restore", "还原"],
+
         // ==================== 菜单栏 (Menu Bar) ====================
         ["File", "文件"],
         ["New Agent", "新建智能体"],
