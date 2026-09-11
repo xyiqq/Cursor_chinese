@@ -2462,10 +2462,11 @@ def QingLi_Jiu_JiHua_RenWu():
 
 
 def XieRu_QiDong_VBS():
-    """写入无窗口启动器：后台自愈后启动 Cursor"""
+    """写入无窗口启动器到本机状态目录（不放项目目录，避免 git 清理后丢失）"""
     BenJiaoBen = os.path.abspath(__file__)
-    XiangMu_MuLu = os.path.dirname(BenJiaoBen)
-    Vbs_LuJing = os.path.join(XiangMu_MuLu, QI_DONG_VBS_MING)
+    ZhuangTai_MuLu = HuoQu_ZhuangTai_MuLu()
+    os.makedirs(ZhuangTai_MuLu, exist_ok=True)
+    Vbs_LuJing = os.path.join(ZhuangTai_MuLu, QI_DONG_VBS_MING)
     PythonW = HuoQu_PythonW()
     # VBS 字符串内用 "" 表示引号；路径保持单反斜杠
     NeiRong = "\r\n".join([
@@ -2475,6 +2476,14 @@ def XieRu_QiDong_VBS():
     ])
     with open(Vbs_LuJing, "w", encoding="ascii", errors="replace") as WenJian:
         WenJian.write(NeiRong)
+
+    # 兼容旧桌面快捷方式：项目目录也放一份同名启动器
+    try:
+        XiangMu_Vbs = os.path.join(os.path.dirname(BenJiaoBen), QI_DONG_VBS_MING)
+        with open(XiangMu_Vbs, "w", encoding="ascii", errors="replace") as WenJian:
+            WenJian.write(NeiRong)
+    except Exception:
+        pass
     return Vbs_LuJing
 
 
