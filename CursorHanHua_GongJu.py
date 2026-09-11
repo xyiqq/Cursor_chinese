@@ -2419,6 +2419,10 @@ def QueBao_ZhuRu(JingMo=False):
         YongLiang_ShuJu, LingPai = ShouJi_YongLiang_ShuJu(JingMo=JingMo)
         ZhiXing_ZhuRu(YongLiang_ShuJu, LingPai, QiangZhi_BeiFen=True)
         try:
+            QueBao_QiDong_KuaiJie(JingMo=JingMo)
+        except Exception:
+            pass
+        try:
             if Shi_Cursor_YunXing():
                 QiDong_YongLiang_JianKong()
         except Exception:
@@ -2430,7 +2434,7 @@ def QueBao_ZhuRu(JingMo=False):
     GengXin_YongLiang_XianShi(JingMo=JingMo)
     XieRu_ZhuRu_ZhuangTai()
     try:
-        XieRu_QiDong_VBS()
+        QueBao_QiDong_KuaiJie(JingMo=JingMo)
     except Exception:
         pass
     try:
@@ -2474,6 +2478,55 @@ def XieRu_QiDong_VBS():
     return Vbs_LuJing
 
 
+def ChuangJian_ZhuoMian_KuaiJie(Vbs_LuJing=None, JingMo=False):
+    """创建/刷新桌面「Cursor中文」快捷方式；同时在开始菜单留一份备份"""
+    if os.name != "nt":
+        return None
+    Vbs_LuJing = Vbs_LuJing or XieRu_QiDong_VBS()
+    Cursor_Exe = os.path.join(HuoQu_AnZhuang_LuJing(), "Cursor.exe")
+    MuBiao_LieBiao = [
+        os.path.join(HuoQu_ZhuoMian_LuJing(), ZHUO_MIAN_KUAI_JIE_MING),
+        os.path.join(
+            os.environ.get("APPDATA", ""),
+            r"Microsoft\Windows\Start Menu\Programs",
+            ZHUO_MIAN_KUAI_JIE_MING,
+        ),
+    ]
+    ChengGong = []
+    for Lnk_LuJing in MuBiao_LieBiao:
+        try:
+            os.makedirs(os.path.dirname(Lnk_LuJing), exist_ok=True)
+            Ps = f'''
+$ws = New-Object -ComObject WScript.Shell
+$lnk = $ws.CreateShortcut('{Lnk_LuJing.replace("'", "''")}')
+$lnk.TargetPath = 'wscript.exe'
+$lnk.Arguments = '//nologo "{Vbs_LuJing.replace("'", "''")}"'
+$lnk.WorkingDirectory = '{os.path.dirname(Vbs_LuJing).replace("'", "''")}'
+$lnk.WindowStyle = 7
+if (Test-Path '{Cursor_Exe.replace("'", "''")}') {{ $lnk.IconLocation = '{Cursor_Exe.replace("'", "''")},0' }}
+$lnk.Description = '启动 Cursor（后台静默检查汉化，无弹窗）'
+$lnk.Save()
+'''
+            subprocess.run(["powershell", "-NoProfile", "-Command", Ps], capture_output=True, text=True)
+            if os.path.exists(Lnk_LuJing):
+                ChengGong.append(Lnk_LuJing)
+                if not JingMo:
+                    print(f"[安装] 已创建快捷方式: {Lnk_LuJing}")
+        except Exception as CuoWu:
+            if not JingMo:
+                print(f"[警告] 创建快捷方式失败: {Lnk_LuJing} ({CuoWu})")
+    return ChengGong[0] if ChengGong else None
+
+
+def QueBao_QiDong_KuaiJie(JingMo=False):
+    """确保本机 VBS 与桌面/开始菜单「Cursor中文」快捷方式存在"""
+    Vbs_LuJing = XieRu_QiDong_VBS()
+    ZhuoMian_Lnk = os.path.join(HuoQu_ZhuoMian_LuJing(), ZHUO_MIAN_KUAI_JIE_MING)
+    if not os.path.exists(ZhuoMian_Lnk):
+        ChuangJian_ZhuoMian_KuaiJie(Vbs_LuJing=Vbs_LuJing, JingMo=JingMo)
+    return Vbs_LuJing
+
+
 def AnZhuang_ZiDong_XiuFu():
     """安装「仅启动时后台检查」：桌面快捷方式，无弹窗、无定时任务"""
     if os.name != 'nt':
@@ -2487,36 +2540,22 @@ def AnZhuang_ZiDong_XiuFu():
 
     Vbs_LuJing = XieRu_QiDong_VBS()
     print(f"[安装] 已写入无窗口启动器: {Vbs_LuJing}")
-
-    ZhuoMian = HuoQu_ZhuoMian_LuJing()
-    Lnk_LuJing = os.path.join(ZhuoMian, ZHUO_MIAN_KUAI_JIE_MING)
-    Cursor_Exe = os.path.join(HuoQu_AnZhuang_LuJing(), "Cursor.exe")
-    Ps = f'''
-$ws = New-Object -ComObject WScript.Shell
-$lnk = $ws.CreateShortcut('{Lnk_LuJing.replace("'", "''")}')
-$lnk.TargetPath = 'wscript.exe'
-$lnk.Arguments = '//nologo "{Vbs_LuJing.replace("'", "''")}"'
-$lnk.WorkingDirectory = '{os.path.dirname(Vbs_LuJing).replace("'", "''")}'
-$lnk.WindowStyle = 7
-if (Test-Path '{Cursor_Exe.replace("'", "''")}') {{ $lnk.IconLocation = '{Cursor_Exe.replace("'", "''")},0' }}
-$lnk.Description = '启动 Cursor（后台静默检查汉化，无弹窗）'
-$lnk.Save()
-'''
-    subprocess.run(["powershell", "-NoProfile", "-Command", Ps], capture_output=True, text=True)
-    if os.path.exists(Lnk_LuJing):
+    Lnk_LuJing = ChuangJian_ZhuoMian_KuaiJie(Vbs_LuJing=Vbs_LuJing, JingMo=False)
+    if Lnk_LuJing:
         print(f"[安装] 已创建桌面快捷方式: {Lnk_LuJing}")
     else:
         print("[警告] 桌面快捷方式创建失败，请直接使用 QiDong_Cursor_ZhongWen.vbs")
 
     print("\n[完成] 已改为「仅启动时后台检查」。")
     print("  - 请用桌面「Cursor中文」启动（无黑框、无弹窗）")
+    print("  - 开始菜单里也有一份「Cursor中文」备份")
     print("  - 每次启动会先在后台检查/修复汉化，再打开 Cursor")
     print("  - 已移除每 5 分钟定时任务与开机自启检查")
     return True
 
 
 def XieZai_ZiDong_XiuFu():
-    """卸载桌面快捷方式与旧计划任务"""
+    """卸载桌面/开始菜单快捷方式与旧计划任务"""
     if os.name != 'nt':
         print("[错误] 仅支持 Windows")
         return False
@@ -2524,10 +2563,17 @@ def XieZai_ZiDong_XiuFu():
     QingLi_Jiu_JiHua_RenWu()
     print("[卸载] 已清理旧版计划任务/启动项")
 
-    Lnk_LuJing = os.path.join(HuoQu_ZhuoMian_LuJing(), ZHUO_MIAN_KUAI_JIE_MING)
-    if os.path.exists(Lnk_LuJing):
-        os.remove(Lnk_LuJing)
-        print(f"[卸载] 已删除桌面快捷方式: {Lnk_LuJing}")
+    for Lnk_LuJing in (
+        os.path.join(HuoQu_ZhuoMian_LuJing(), ZHUO_MIAN_KUAI_JIE_MING),
+        os.path.join(
+            os.environ.get("APPDATA", ""),
+            r"Microsoft\Windows\Start Menu\Programs",
+            ZHUO_MIAN_KUAI_JIE_MING,
+        ),
+    ):
+        if os.path.exists(Lnk_LuJing):
+            os.remove(Lnk_LuJing)
+            print(f"[卸载] 已删除快捷方式: {Lnk_LuJing}")
 
     print("[完成] 启动检查快捷方式已卸载（汉化文件本身未删除，可用 --huifu 完全恢复）")
     return True
