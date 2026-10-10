@@ -34,7 +34,7 @@ import urllib.error  # HTTP 错误处理
 import time  # 后台用量轮询
 
 # 本工具版本（与 README 保持一致）
-GONG_JU_BAN_BEN = "1.2.1"
+GONG_JU_BAN_BEN = "1.2.2"
 
 # ============================================================
 # ★★★ 用户配置区域 ★★★
@@ -1471,6 +1471,9 @@ def ShengCheng_JS_DaiMa(YongLiang_ShuJu, YuanShi_LingPai=""):
         }
     }
 
+    var _ChaRu_JiShi = 0;
+    var _ZhengZaiChaRuYongLiang = false;
+
     function ZhiXing_PiLiang_FanYi() {
         var nodes = DaiChuLi_JieDian;
         DaiChuLi_JieDian = [];
@@ -1478,16 +1481,45 @@ def ShengCheng_JS_DaiMa(YongLiang_ShuJu, YuanShi_LingPai=""):
         for (var i = 0; i < nodes.length; i++) {
             try { FanYi_ZiShu(nodes[i]); } catch (e) {}
         }
-        try { ChaRu_YongLiang_XianShi(); } catch (e) {}
+        // 不在每次 DOM 变动里重插用量条，避免切换对话时显示/隐藏抖动
+        YuYue_ChaRu_YongLiang();
+    }
+
+    function _YongLiang_YiZaiDangQian(existing, shuRu) {
+        if (!existing || !existing.isConnected || !shuRu) return false;
+        var prev = existing.previousElementSibling;
+        if (!prev) return false;
+        if (prev === shuRu) return true;
+        try {
+            if (prev.contains(shuRu) || shuRu.contains(prev)) return true;
+        } catch (e) {}
+        return false;
+    }
+
+    function YuYue_ChaRu_YongLiang() {
+        if (_ZhengZaiChaRuYongLiang) return;
+        var existing = document.getElementById('cursor-yongliang-chat');
+        var shuRu = _ZhaoDao_ShuRuKuang();
+        // 已正确挂在「当前」输入框下才跳过；挂在旧对话上必须挪位
+        if (_YongLiang_YiZaiDangQian(existing, shuRu) && _ShiKeJian(existing)) return;
+        clearTimeout(_ChaRu_JiShi);
+        _ChaRu_JiShi = setTimeout(function() {
+            try { ChaRu_YongLiang_XianShi(); } catch (e) {}
+        }, 400);
     }
 
     function GuanCha_HuiDiao(mutations) {
         for (var i = 0; i < mutations.length; i++) {
             var m = mutations[i];
             if (m.type === 'childList') {
+                // 忽略用量条自身的增删，打断「插入→观察→再插入」循环
+                if (m.target && m.target.id === 'cursor-yongliang-chat') continue;
+                if (m.target && m.target.closest && m.target.closest('#cursor-yongliang-chat')) continue;
                 var added = m.addedNodes;
                 for (var j = 0; j < added.length; j++) {
                     var node = added[j];
+                    if (node.id === 'cursor-yongliang-chat') continue;
+                    if (node.nodeType === Node.ELEMENT_NODE && node.closest && node.closest('#cursor-yongliang-chat')) continue;
                     if (node.nodeType === Node.ELEMENT_NODE || node.nodeType === Node.TEXT_NODE) {
                         TianJia_DaiChuLi(node);
                     }
@@ -1534,6 +1566,16 @@ def ShengCheng_JS_DaiMa(YongLiang_ShuJu, YuanShi_LingPai=""):
         return m ? Math.round(parseFloat(m[1]) * 10) / 10 : null;
     }
 
+    var _ShangCiXianShi = '';
+
+    function _YongLiang_QianMing() {
+        return [
+            YONG_LIANG.zongBaiFen, YONG_LIANG.shengYuBaiFen,
+            YONG_LIANG.apiBaiFen, YONG_LIANG.autoBaiFen,
+            YONG_LIANG.jiFeiJieShu || ''
+        ].join('|');
+    }
+
     function _YingYong_YongLiangShuJu(src) {
         if (!src || !src.youXiao) return false;
         if (src.summaryOk === false) return false;
@@ -1557,14 +1599,15 @@ def ShengCheng_JS_DaiMa(YongLiang_ShuJu, YuanShi_LingPai=""):
             fetch('./usage_live.json?t=' + Date.now(), { cache: 'no-store' })
                 .then(function(r) { return r.ok ? r.json() : null; })
                 .then(function(data) {
+                    var bianLe = false;
                     if (data && _YingYong_YongLiangShuJu(data)) {
-                        GengXin_KaPian();
+                        bianLe = GengXin_KaPian(false);
                     }
-                    if (huiDiao) huiDiao(!!data);
+                    if (huiDiao) huiDiao(!!data, bianLe);
                 })
-                .catch(function() { if (huiDiao) huiDiao(false); });
+                .catch(function() { if (huiDiao) huiDiao(false, false); });
         } catch (e) {
-            if (huiDiao) huiDiao(false);
+            if (huiDiao) huiDiao(false, false);
         }
     }
 
@@ -1589,14 +1632,37 @@ def ShengCheng_JS_DaiMa(YongLiang_ShuJu, YuanShi_LingPai=""):
         YONG_LIANG.gengXinShiJian = new Date().toLocaleString();
     }
 
-    function GengXin_KaPian() {
+    function GengXin_KaPian(QiangZhi) {
+        var qianMing = _YongLiang_QianMing();
         var old = document.getElementById('cursor-yongliang-chat');
-        if (old && old.parentElement) {
-            var neo = ChuangJian_YongLiang_HengTiao();
-            if (neo) old.parentElement.replaceChild(neo, old);
+        // 数值未变时不重建 DOM，避免聊天区周期性闪屏
+        if (!QiangZhi && old && old.isConnected && qianMing === _ShangCiXianShi) {
+            if (old.style.opacity) old.style.opacity = '1';
+            return false;
         }
+        // 条还在时只原地改文字，避免 replaceChild 触发布局跳动
+        if (old && old.isConnected && old.parentElement) {
+            _ShangCiXianShi = qianMing;
+            try {
+                _ZhengZaiChaRuYongLiang = true;
+                var neo = ChuangJian_YongLiang_HengTiao();
+                if (neo) {
+                    while (old.firstChild) old.removeChild(old.firstChild);
+                    while (neo.firstChild) old.appendChild(neo.firstChild);
+                    old.style.opacity = '1';
+                }
+            } finally {
+                _ZhengZaiChaRuYongLiang = false;
+            }
+            _YiChu_XuanFu();
+            _YiChu_SheZhiKaPian();
+            return true;
+        }
+        _ShangCiXianShi = qianMing;
         _YiChu_XuanFu();
         _YiChu_SheZhiKaPian();
+        ChaRu_YongLiang_XianShi();
+        return true;
     }
 
     function _YiChu_XuanFu() {
@@ -1629,10 +1695,12 @@ def ShengCheng_JS_DaiMa(YongLiang_ShuJu, YuanShi_LingPai=""):
                 _ZhengZaiShuaXin = false;
                 YONG_LIANG._shiShi = true;
                 if (!wangZhanOk) {
-                    _JiaZai_LiveJson(function() { GengXin_KaPian(); });
+                    _JiaZai_LiveJson(function() { GengXin_KaPian(!!ShiDianJi); });
                 } else {
-                    GengXin_KaPian();
+                    GengXin_KaPian(!!ShiDianJi);
                 }
+                var card = document.getElementById('cursor-yongliang-chat');
+                if (card) card.style.opacity = '1';
             }
         }
 
@@ -1758,9 +1826,17 @@ def ShengCheng_JS_DaiMa(YongLiang_ShuJu, YuanShi_LingPai=""):
 
     function _ShiKeJian(el) {
         if (!el || !(el instanceof Element)) return false;
+        if (el.closest && el.closest('[aria-hidden="true"]')) return false;
         if (el.offsetParent === null && getComputedStyle(el).position !== 'fixed') return false;
+        var st = getComputedStyle(el);
+        if (st.visibility === 'hidden' || st.display === 'none' || Number(st.opacity) === 0) return false;
         var r = el.getBoundingClientRect();
-        return r.width >= 60 && r.height >= 8;
+        if (r.width < 60 || r.height < 8) return false;
+        // 必须落在视口内（旧对话藏在侧栏外时不算）
+        var vh = window.innerHeight || document.documentElement.clientHeight || 0;
+        var vw = window.innerWidth || document.documentElement.clientWidth || 0;
+        if (r.bottom < 40 || r.top > vh - 20 || r.right < 40 || r.left > vw - 20) return false;
+        return true;
     }
 
     function _ZhaoDao_ShuRuKuang() {
@@ -1773,6 +1849,7 @@ def ShengCheng_JS_DaiMa(YongLiang_ShuJu, YuanShi_LingPai=""):
             '.aislash-editor-input'
         ];
         var houXuan = [];
+        var ae = document.activeElement;
         for (var i = 0; i < xuanZeQi.length; i++) {
             var nodes = document.querySelectorAll(xuanZeQi[i]);
             for (var j = 0; j < nodes.length; j++) {
@@ -1783,47 +1860,50 @@ def ShengCheng_JS_DaiMa(YongLiang_ShuJu, YuanShi_LingPai=""):
                 var box = el.closest('.ai-input-full-input-box, .full-input-box, .composer-input-container, .composer-input-wrapper, .ui-prompt-input') || el;
                 if (!_ShiKeJian(box)) box = el;
                 var r = box.getBoundingClientRect();
-                houXuan.push({ el: box, top: r.top, bottom: r.bottom, area: r.width * r.height });
+                var score = r.bottom + Math.min(r.width * r.height / 10000, 80);
+                if (ae && (box.contains(ae) || box === ae || el.contains(ae))) score += 10000;
+                houXuan.push({ el: box, top: r.top, bottom: r.bottom, area: r.width * r.height, score: score });
             }
         }
         if (!houXuan.length) return null;
-        // 优先选靠近窗口底部的输入框（聊天输入通常在底部）
-        houXuan.sort(function(a, b) {
-            if (Math.abs(b.bottom - a.bottom) > 20) return b.bottom - a.bottom;
-            return b.area - a.area;
-        });
+        // 优先：含焦点的可见输入框 > 靠近窗口底部
+        houXuan.sort(function(a, b) { return b.score - a.score; });
         return houXuan[0].el;
     }
 
     function _ChaRu_DuiHuaLan() {
-        var shuRu = _ZhaoDao_ShuRuKuang();
         var existing = document.getElementById('cursor-yongliang-chat');
+        var shuRu = _ZhaoDao_ShuRuKuang();
 
-        if (!shuRu) return !!existing;
+        if (!shuRu || !shuRu.parentElement) return !!(existing && existing.isConnected);
 
-        // 已正确插在输入框正下方则保留
-        if (existing && existing.parentElement && existing.previousElementSibling === shuRu) {
+        // 已正确挂在当前对话输入框下：不动
+        if (_YongLiang_YiZaiDangQian(existing, shuRu) && _ShiKeJian(existing)) {
+            _ShangCiXianShi = _YongLiang_QianMing();
             return true;
         }
 
         var tiao = ChuangJian_YongLiang_HengTiao();
         if (!tiao) return false;
 
-        if (existing && existing.parentElement) {
-            existing.parentElement.removeChild(existing);
-        }
-
-        if (shuRu.parentElement) {
+        _ZhengZaiChaRuYongLiang = true;
+        try {
+            if (existing && existing.parentElement) {
+                existing.parentElement.removeChild(existing);
+            }
             // 插在输入框下方：上方会被 Changes/Push 等动态操作按钮遮挡
             shuRu.parentElement.insertBefore(tiao, shuRu.nextSibling);
-            console.log('[HanHua] Usage bar inserted below input');
+            _ShangCiXianShi = _YongLiang_QianMing();
+            console.log('[HanHua] Usage bar moved to current input');
             return true;
+        } finally {
+            _ZhengZaiChaRuYongLiang = false;
         }
-        return false;
     }
 
     function ChaRu_YongLiang_XianShi() {
         if (!YONG_LIANG || !YONG_LIANG.youXiao) return;
+        if (_ZhengZaiChaRuYongLiang) return;
         _YiChu_XuanFu();
         _YiChu_SheZhiKaPian();
         _ChaRu_DuiHuaLan();
@@ -1856,19 +1936,24 @@ def ShengCheng_JS_DaiMa(YongLiang_ShuJu, YuanShi_LingPai=""):
             BuFan_CiShu++;
             if (document.body) {
                 FanYi_ZiShu(document.body);
-                ChaRu_YongLiang_XianShi();
+                YuYue_ChaRu_YongLiang();
             }
             if (BuFan_CiShu >= 10) { clearInterval(BuFan_JiShiQi); }
         }, 3000);
 
+        // 切换对话后输入框重建，用量条可能被一起拆掉；低频补回，绝不频繁拆装
+        setInterval(function() {
+            YuYue_ChaRu_YongLiang();
+        }, 2000);
+
         if (_XHJ_LP) {
+            // 仅在 live json 数值变化时刷新条；无变化不请求官网、不重建 DOM
             setInterval(function() {
-                _JiaZai_LiveJson(function() {
-                    if (document.getElementById('cursor-yongliang-chat')) {
-                        ShiShi_ShuaXin(false);
-                    }
+                if (!document.getElementById('cursor-yongliang-chat')) return;
+                _JiaZai_LiveJson(function(ok, bianLe) {
+                    if (!ok) ShiShi_ShuaXin(false);
                 });
-            }, 20000);
+            }, 60000);
         }
     }
 
